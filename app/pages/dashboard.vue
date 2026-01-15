@@ -28,15 +28,16 @@
           <div v-if="selectedTab === 'live-tv'">
             <div
               v-for="category in filteredLiveCategories"
-              :key="category.id"
+              :key="category.category_id || category.id"
               class="p-2 mb-2 text-sm rounded-md bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-primary-700 transition-colors"
               :class="{
                 'bg-primary-200 dark:bg-primary-800 border-2 border-primary-500':
-                  stalker.selectedCategory?.id === category.id,
+                  selectedCategory?.category_id === category.category_id ||
+                  selectedCategory?.id === category.id,
               }"
               @click="setSelectedCategory(category)"
             >
-              <span>{{ category.title }}</span>
+              <span>{{ category.category_name || category.title }}</span>
             </div>
             <div
               v-if="filteredLiveCategories.length === 0 && search"
@@ -53,15 +54,16 @@
           <div v-if="selectedTab === 'movies'">
             <div
               v-for="category in filteredMoviesCategories"
-              :key="category.id"
+              :key="category.category_id || category.id"
               class="p-2 mb-2 text-sm rounded-md bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-primary-700 transition-colors"
               :class="{
                 'bg-primary-200 dark:bg-primary-800 border-2 border-primary-500':
-                  stalker.selectedCategory?.id === category.id,
+                  selectedCategory?.category_id === category.category_id ||
+                  selectedCategory?.id === category.id,
               }"
               @click="setSelectedCategory(category)"
             >
-              <span>{{ category.title }}</span>
+              <span>{{ category.category_name || category.title }}</span>
             </div>
             <div
               v-if="filteredMoviesCategories.length === 0 && search"
@@ -78,15 +80,16 @@
           <div v-if="selectedTab === 'series'">
             <div
               v-for="category in filteredSeriesCategories"
-              :key="category.id"
+              :key="category.category_id || category.id"
               class="p-2 mb-2 text-sm rounded-md bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-primary-700 transition-colors"
               :class="{
                 'bg-primary-200 dark:bg-primary-800 border-2 border-primary-500':
-                  stalker.selectedCategory?.id === category.id,
+                  selectedCategory?.category_id === category.category_id ||
+                  selectedCategory?.id === category.id,
               }"
               @click="setSelectedCategory(category)"
             >
-              <span>{{ category.title }}</span>
+              <span>{{ category.category_name || category.title }}</span>
             </div>
             <div
               v-if="filteredSeriesCategories.length === 0 && search"
@@ -155,13 +158,22 @@
             Series
           </span>
         </button>
+        <button
+          class="flex flex-col items-center gap-1 cursor-pointer"
+          @click="setSelectedTab('account')"
+        >
+          <Icon
+            name="lucide:user"
+            class="w-6 h-6"
+            :class="{ 'text-primary': selectedTab === 'account' }"
+            aria-hidden="true"
+          />
+          <span class="text-xs">Account</span>
+        </button>
       </div>
     </div>
     <div class="maincontent w-full h-screen overflow-auto p-10">
-      <UProgress
-        v-if="stalker.progress > 0 && stalker.progress < 100"
-        v-model="stalker.progress"
-      />
+      <UProgress v-if="progress > 0 && progress < 100" v-model="progress" />
       <div v-if="selectedTab == 'live-tv'">
         <Live />
       </div>
@@ -171,7 +183,27 @@
       <div v-if="selectedTab == 'series'">
         <Series />
       </div>
-      <UModal class="m-10" fullscreen v-model:open="stalker.modalOpen">
+      <div v-if="selectedTab == 'account'">
+        <div class="flex flex-col gap-4 max-w-md mx-auto">
+          <h1 class="text-2xl text-center font-bold mb-4">Account Settings</h1>
+
+          <div class="p-4 bg-gray-800 rounded-lg">
+            <h2 class="text-lg font-semibold mb-2">Current Provider</h2>
+            <p class="text-gray-400 capitalize">{{ providerType }}</p>
+          </div>
+
+          <UButton
+            leadingIcon="i-lucide-log-out"
+            size="xl"
+            color="red"
+            variant="solid"
+            @click="handleLogout"
+          >
+            Sign Out
+          </UButton>
+        </div>
+      </div>
+      <UModal class="m-10" fullscreen v-model:open="modalOpen">
         <template #content>
           <div
             class="modal-container flex flex-row h-full w-full bg-gray-900 dark:bg-gray-950"
@@ -202,145 +234,159 @@
 
 <script setup lang="ts">
 const stalker = useStalkerStore();
+const xtream = useXtreamStore();
+const toast = useToast();
+
 const selectedTab = ref("live-tv");
 const selectedCategory = ref<any>(null);
-const selectedItem = ref<any>(null);
 const search = ref("");
 
+// Determine which provider is active
+const providerType = computed(() => {
+  if (stalker.token) return "stalker";
+  if (xtream.isAuthenticated) return "xtream";
+  return null;
+});
+
+// Unified progress
+const progress = computed(() => {
+  return providerType.value === "stalker" ? stalker.progress : xtream.progress;
+});
+
+// Unified modal state
+const modalOpen = computed({
+  get: () => {
+    return providerType.value === "stalker"
+      ? stalker.modalOpen
+      : xtream.modalOpen;
+  },
+  set: (val) => {
+    if (providerType.value === "stalker") {
+      stalker.modalOpen = val;
+    } else if (providerType.value === "xtream") {
+      xtream.modalOpen = val;
+    }
+  },
+});
+
 onMounted(async () => {
-  if (!stalker.token) {
+  if (!stalker.token && !xtream.isAuthenticated) {
     navigateTo("/");
   }
 });
 
-// Computed property for filtered categories based on search
+// Computed properties for categories (unified)
 const filteredLiveCategories = computed(() => {
-  if (!stalker.liveCategories || !Array.isArray(stalker.liveCategories)) {
-    return [];
-  }
-  if (!search.value.trim()) {
-    return stalker.liveCategories;
-  }
+  const categories =
+    providerType.value === "stalker"
+      ? stalker.liveCategories
+      : xtream.liveCategories;
+
+  if (!categories || !Array.isArray(categories)) return [];
+  if (!search.value.trim()) return categories;
+
   const searchTerm = search.value.toLowerCase().trim();
-  return stalker.liveCategories.filter((category: any) =>
-    category.title?.toLowerCase().includes(searchTerm)
+  return categories.filter((category: any) =>
+    (category.title || category.category_name || "")
+      .toLowerCase()
+      .includes(searchTerm)
   );
 });
 
 const filteredMoviesCategories = computed(() => {
-  if (!stalker.moviesCategories || !Array.isArray(stalker.moviesCategories)) {
-    return [];
-  }
-  if (!search.value.trim()) {
-    return stalker.moviesCategories;
-  }
+  const categories =
+    providerType.value === "stalker"
+      ? stalker.moviesCategories
+      : xtream.vodCategories;
+
+  if (!categories || !Array.isArray(categories)) return [];
+  if (!search.value.trim()) return categories;
+
   const searchTerm = search.value.toLowerCase().trim();
-  return stalker.moviesCategories.filter((category: any) =>
-    category.title?.toLowerCase().includes(searchTerm)
+  return categories.filter((category: any) =>
+    (category.title || category.category_name || "")
+      .toLowerCase()
+      .includes(searchTerm)
   );
 });
 
 const filteredSeriesCategories = computed(() => {
-  if (!stalker.seriesCategories || !Array.isArray(stalker.seriesCategories)) {
-    return [];
-  }
-  if (!search.value.trim()) {
-    return stalker.seriesCategories;
-  }
+  const categories =
+    providerType.value === "stalker"
+      ? stalker.seriesCategories
+      : xtream.seriesCategories;
+
+  if (!categories || !Array.isArray(categories)) return [];
+  if (!search.value.trim()) return categories;
+
   const searchTerm = search.value.toLowerCase().trim();
-  return stalker.seriesCategories.filter((category: any) =>
-    category.title?.toLowerCase().includes(searchTerm)
+  return categories.filter((category: any) =>
+    (category.title || category.category_name || "")
+      .toLowerCase()
+      .includes(searchTerm)
   );
 });
-
-// Watch for selectedCategory changes
-watch(
-  () => stalker.selectedCategory,
-  () => {
-    if (stalker.modalOpen) {
-      stalker.currentChannel = null;
-    }
-  }
-);
 
 function setSelectedTab(tab: string) {
   selectedTab.value = tab;
   selectedCategory.value = null;
-  selectedItem.value = null;
-  search.value = ""; // Clear search when switching tabs
+  search.value = "";
 
-  if (tab === "live-tv") {
-    stalker.getLiveItems(stalker.liveCategories[1].id);
-    stalker.selectedCategory = stalker.liveCategories[1];
-  } else if (tab === "movies") {
-    stalker.getMoviesItems(stalker.moviesCategories[1].id);
-    stalker.selectedCategory = stalker.moviesCategories[1];
-  } else if (tab === "series") {
-    stalker.getSeriesItems(stalker.seriesCategories[1].id);
-    stalker.selectedCategory = stalker.seriesCategories[1];
+  if (tab === "live-tv" && filteredLiveCategories.value.length > 0) {
+    setSelectedCategory(filteredLiveCategories.value[0]);
+  } else if (tab === "movies" && filteredMoviesCategories.value.length > 0) {
+    setSelectedCategory(filteredMoviesCategories.value[0]);
+  } else if (tab === "series" && filteredSeriesCategories.value.length > 0) {
+    setSelectedCategory(filteredSeriesCategories.value[0]);
   }
 }
 
-// Computed properties to safely access items
-const getLiveItems = computed(() => {
-  if (!selectedCategory.value) return [];
-  const key = `${selectedCategory.value.id}_1`;
-  const items = stalker.liveItems[key];
-  if (!items || !Array.isArray(items)) {
-    console.warn("Live items not found or not an array:", key, items);
-    return [];
-  }
-  return items;
-});
-
-const getMoviesItems = computed(() => {
-  if (!selectedCategory.value) return [];
-  const key = `${selectedCategory.value.id}_1`;
-  const items = stalker.moviesItems[key];
-  if (!items || !Array.isArray(items)) {
-    console.warn("Movies items not found or not an array:", key, items);
-    return [];
-  }
-  return items;
-});
-
-const getSeriesItems = computed(() => {
-  if (!selectedCategory.value) return [];
-  const key = `${selectedCategory.value.id}_1`;
-  const items = stalker.seriesItems[key];
-  if (!items || !Array.isArray(items)) {
-    console.warn("Series items not found or not an array:", key, items);
-    return [];
-  }
-  return items;
-});
-
-function setSelectedCategory(category: any) {
+async function setSelectedCategory(category: any) {
   selectedCategory.value = category;
-  selectedItem.value = category.value;
-  stalker.selectedCategory = category;
 
-  if (selectedTab.value === "live-tv") {
-    stalker.getLiveItems(category.id);
-  } else if (selectedTab.value === "movies") {
-    stalker.getMoviesItems(category.id);
-  } else if (selectedTab.value === "series") {
-    stalker.getSeriesItems(category.id);
+  if (providerType.value === "stalker") {
+    stalker.selectedCategory = category;
+    const categoryId = category.id;
+
+    if (selectedTab.value === "live-tv") {
+      await stalker.getLiveItems(categoryId);
+    } else if (selectedTab.value === "movies") {
+      await stalker.getMoviesItems(categoryId);
+    } else if (selectedTab.value === "series") {
+      await stalker.getSeriesItems(categoryId);
+    }
+  } else if (providerType.value === "xtream") {
+    xtream.selectedCategory = category;
+    const categoryId = (category.category_id || category.id).toString();
+
+    if (selectedTab.value === "live-tv") {
+      await xtream.getLiveStreams(categoryId);
+    } else if (selectedTab.value === "movies") {
+      await xtream.getVodStreams(categoryId);
+    } else if (selectedTab.value === "series") {
+      await xtream.getSeriesStreams(categoryId);
+    }
   }
+}
+
+function handleLogout() {
+  if (providerType.value === "stalker") {
+    stalker.$reset();
+  } else if (providerType.value === "xtream") {
+    xtream.logout();
+  }
+
+  toast.add({
+    title: "Logged Out",
+    description: "You have been successfully logged out",
+    color: "green",
+  });
+
+  navigateTo("/");
 }
 </script>
 
 <style scoped>
-.items-holder {
-  display: grid;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  min-height: 400px;
-  overflow-y: auto;
-  max-height: 40vh;
-}
-
 .modal-container {
   backdrop-filter: blur(10px);
 }

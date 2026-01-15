@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="stalker.currentMovie"
+    v-if="currentMovie"
     class="movie-sidebar w-96 bg-gray-800/95 dark:bg-gray-900/95 border-l border-gray-700 flex flex-col overflow-hidden"
   >
     <!-- Movie Header with Background -->
@@ -38,7 +38,7 @@
         variant="ghost"
         size="sm"
         class="absolute top-2 right-2 z-20"
-        @click="stalker.modalOpen = false"
+        @click="closeModal"
       />
     </div>
 
@@ -155,11 +155,34 @@
 
 <script setup lang="ts">
 const stalker = useStalkerStore();
+const xtream = useXtreamStore();
+
 const props = defineProps<{
   selectedTab: string;
 }>();
 
 const selectedTabRef = computed(() => props.selectedTab);
+
+// Determine which provider is active
+const providerType = computed(() => {
+  if (stalker.token) return "stalker";
+  if (xtream.isAuthenticated) return "xtream";
+  return null;
+});
+
+const currentMovie = computed(() => {
+  return providerType.value === "stalker"
+    ? stalker.currentMovie
+    : xtream.currentStream;
+});
+
+function closeModal() {
+  if (providerType.value === "stalker") {
+    stalker.modalOpen = false;
+  } else if (providerType.value === "xtream") {
+    xtream.modalOpen = false;
+  }
+}
 
 const { movieDetails, loadingMovieDetails, movieDetailsError, trailerVideo } =
   useMovieDetails(selectedTabRef);

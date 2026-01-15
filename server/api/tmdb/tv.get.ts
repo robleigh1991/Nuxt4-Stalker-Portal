@@ -1,3 +1,4 @@
+// server/api/tmdb/tv.get.ts
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
@@ -14,13 +15,14 @@ export default defineEventHandler(async (event) => {
     if (!apiKey) {
       throw createError({
         statusCode: 500,
-        message: "TMDB API key missing",
+        message: "TMDB_API_KEY not configured in environment variables",
       });
     }
 
     const baseUrl = "https://api.themoviedb.org/3";
     const commonQuery = { api_key: apiKey };
 
+    // Fetch all data in parallel
     const [details, videos, credits, images] = await Promise.allSettled([
       $fetch(`${baseUrl}/tv/${tmdbId}`, { query: commonQuery }),
       $fetch(`${baseUrl}/tv/${tmdbId}/videos`, { query: commonQuery }),
@@ -28,6 +30,7 @@ export default defineEventHandler(async (event) => {
       $fetch(`${baseUrl}/tv/${tmdbId}/images`, { query: commonQuery }),
     ]);
 
+    // Helper to safely extract values
     const safe = <T>(r: PromiseSettledResult<T>, fallback: T): T =>
       r.status === "fulfilled" ? r.value : fallback;
 
@@ -36,7 +39,7 @@ export default defineEventHandler(async (event) => {
     const creditsData = safe(credits, { cast: [], crew: [] });
     const imagesData = safe(images, { backdrops: [], posters: [], logos: [] });
 
-    // If all failed, return null to let frontend fallback
+    // If main details failed, return null for fallback
     if (!seriesDetails) {
       return null;
     }
@@ -48,11 +51,7 @@ export default defineEventHandler(async (event) => {
       images: imagesData,
     };
   } catch (err: any) {
-    console.error("TMDB API error:", {
-      status: err?.response?.status,
-      message: err?.message,
-    });
-
-    return null; // fallback handled in frontend
+    console.error("TMDB TV API error:", err);
+    return null; // Allow frontend fallback
   }
 });

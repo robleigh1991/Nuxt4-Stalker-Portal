@@ -1,3 +1,4 @@
+// server/api/tmdb/search.post.ts
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -10,28 +11,30 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get TMDB API key from environment
-    const apiKey = process.env.TMDB_API_KEY || "your-tmdb-api-key";
+    const apiKey = process.env.TMDB_API_KEY;
+    if (!apiKey) {
+      throw createError({
+        statusCode: 500,
+        message: "TMDB_API_KEY not configured in environment variables",
+      });
+    }
 
-    console.log(apiKey);
     const baseUrl = "https://api.themoviedb.org/3";
 
     // Search for movies
     const searchResults = await $fetch(`${baseUrl}/search/movie`, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
       query: {
         api_key: apiKey,
         query: query,
         year: year || undefined,
+        language: "en-US",
       },
     });
 
     return searchResults;
   } catch (err: any) {
-    console.error("TMDB Search API error:", err);
+    console.error("TMDB movie search API error:", err);
     throw createError({
       statusCode: err.statusCode || 500,
       message: err.message || "Failed to search movies on TMDB",

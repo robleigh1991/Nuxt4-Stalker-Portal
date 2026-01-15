@@ -20,7 +20,8 @@
     "@unhead/vue": "^2.0.19",
     "nuxt": "^4.2.2",
     "pinia": "^3.0.4",
-    "plyr": "^3.8.3"
+    "plyr": "^3.8.3",
+    "vue-virtual-scroller": "^2.0.0-beta.8"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.12.1",

@@ -14,6 +14,19 @@ export default defineEventHandler(async (event) => {
       genre_id = null,
     } = body;
 
+    let fullUrl;
+
+    // Check if this is a stalker_portal type URL
+    if (portalurl.includes("/stalker_portal/c")) {
+      const baseUrl = portalurl.replace("/c", "");
+      fullUrl = `${baseUrl}/server/load.php`;
+    } else if (portalurl.endsWith("/c")) {
+      const baseUrl = portalurl.replace(/\/c$/, "");
+      fullUrl = `${baseUrl}/portal.php`;
+    } else {
+      fullUrl = `${portalurl}/portal.php`;
+    }
+
     const params = {
       type: media_type,
       action: media_action,
@@ -32,18 +45,28 @@ export default defineEventHandler(async (event) => {
       params.genre = genre_id;
     }
 
-    const data = await $fetch(`${portalurl}/server/load.php`, {
+    const data = await $fetch(fullUrl, {
       method: "GET",
       headers: {
-        "User-Agent": "MAG200 stbapp",
-        Cookie: `mac=${macaddress}; stb_lang=en;`,
+        "User-Agent":
+          "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "X-User-Agent": "Model: MAG250; Link: WiFi",
         Authorization: `Bearer ${token}`,
-        Accept: "application/json",
+        Cookie: `mac=${macaddress}; stb_lang=en; timezone=GMT`,
+        Referer: portalurl.endsWith("/c") ? portalurl + "/" : portalurl,
       },
       query: params,
+      sHttpRequest: "1-xml",
     });
 
-    const json = JSON.parse(data);
+    // Handle both string and object responses
+    let json;
+    if (typeof data === "string") {
+      json = JSON.parse(data);
+    } else {
+      json = data;
+    }
+
     return json.js;
   } catch (err) {
     console.error("Portal request failed:", err);

@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="stalker.currentSeries"
+    v-if="currentSeries"
     class="series-sidebar w-96 bg-gray-800/95 dark:bg-gray-900/95 border-l border-gray-700 flex flex-col overflow-hidden"
   >
     <!-- Series Header with Background -->
@@ -49,7 +49,7 @@
         variant="ghost"
         size="sm"
         class="absolute top-2 right-2 z-20"
-        @click="stalker.modalOpen = false"
+        @click="closeModal"
       />
     </div>
 
@@ -87,6 +87,7 @@
             </span>
           </div>
         </div>
+
         <!-- Season Selector -->
         <div v-if="availableSeasons.length > 0" class="mb-4">
           <h3 class="text-lg font-semibold text-white mb-2">Select Season</h3>
@@ -99,6 +100,7 @@
             class="w-full"
           />
         </div>
+
         <!-- Episodes List -->
         <div v-if="selectedSeason && episodes.length > 0" class="mb-4">
           <h3 class="text-lg font-semibold text-white mb-2">Episodes</h3>
@@ -111,11 +113,11 @@
             >
               <div class="flex items-start gap-3">
                 <div
-                  v-if="episode.screenshot_uri"
+                  v-if="getEpisodeImage(episode)"
                   class="w-20 h-12 rounded overflow-hidden bg-gray-600 shrink-0"
                 >
                   <img
-                    :src="episode.screenshot_uri"
+                    :src="getEpisodeImage(episode)"
                     :alt="episode.name"
                     class="w-full h-full object-cover"
                     onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
@@ -127,17 +129,24 @@
                       E{{ episode.episode_num || episode.episode }}
                     </span>
                     <h4 class="text-sm font-semibold text-white truncate">
-                      {{ episode.name }}
+                      {{ episode.name || episode.title }}
                     </h4>
                   </div>
                   <p
-                    v-if="episode.description"
+                    v-if="episode.description || episode.info?.plot"
                     class="text-xs text-gray-400 line-clamp-2"
                   >
-                    {{ episode.description }}
+                    {{ episode.description || episode.info?.plot }}
                   </p>
-                  <p v-if="episode.air_date" class="text-xs text-gray-500 mt-1">
-                    {{ new Date(episode.air_date).toLocaleDateString() }}
+                  <p
+                    v-if="episode.air_date || episode.info?.releasedate"
+                    class="text-xs text-gray-500 mt-1"
+                  >
+                    {{
+                      new Date(
+                        episode.air_date || episode.info?.releasedate
+                      ).toLocaleDateString()
+                    }}
                   </p>
                 </div>
                 <Icon
@@ -176,11 +185,43 @@
 
 <script setup lang="ts">
 const stalker = useStalkerStore();
+const xtream = useXtreamStore();
+
 const props = defineProps<{
   selectedTab: string;
 }>();
 
 const selectedTabRef = computed(() => props.selectedTab);
+
+// Determine which provider is active
+const providerType = computed(() => {
+  if (stalker.token) return "stalker";
+  if (xtream.isAuthenticated) return "xtream";
+  return null;
+});
+
+const currentSeries = computed(() => {
+  return providerType.value === "stalker"
+    ? stalker.currentSeries
+    : xtream.currentStream;
+});
+
+function closeModal() {
+  if (providerType.value === "stalker") {
+    stalker.modalOpen = false;
+  } else if (providerType.value === "xtream") {
+    xtream.modalOpen = false;
+  }
+}
+
+function getEpisodeImage(episode: any): string {
+  if (providerType.value === "stalker") {
+    return episode.screenshot_uri || "";
+  } else if (providerType.value === "xtream") {
+    return episode.info?.movie_image || "";
+  }
+  return "";
+}
 
 const {
   seriesDetails,

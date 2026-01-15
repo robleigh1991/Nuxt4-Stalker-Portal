@@ -10,16 +10,19 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get TMDB API key from environment or use a default (you should set this in .env)
-    const apiKey = process.env.TMDB_API_KEY || "your-tmdb-api-key";
+    const apiKey = process.env.TMDB_API_KEY;
+    if (!apiKey) {
+      throw createError({
+        statusCode: 500,
+        message: "TMDB_API_KEY not configured in environment variables",
+      });
+    }
+
     const baseUrl = "https://api.themoviedb.org/3";
 
-    // Fetch movie details
+    // Fetch movie details with all extras
     const movieDetails = await $fetch(`${baseUrl}/movie/${tmdbId}`, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
       query: {
         api_key: apiKey,
         append_to_response: "videos,credits,images",
@@ -28,11 +31,16 @@ export default defineEventHandler(async (event) => {
 
     return movieDetails;
   } catch (err: any) {
-    console.error("TMDB API error:", err);
+    console.error("TMDB movie API error:", err);
+
+    // Return null for 404s to allow fallback
+    if (err.statusCode === 404) {
+      return null;
+    }
+
     throw createError({
       statusCode: err.statusCode || 500,
       message: err.message || "Failed to fetch movie details from TMDB",
     });
   }
 });
-

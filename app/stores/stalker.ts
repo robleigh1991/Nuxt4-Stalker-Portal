@@ -36,16 +36,27 @@ export const useStalkerStore = defineStore("stalker", {
         this.isLoading = true;
         this.error = null;
 
+        // Normalize the portal URL
+        let normalizedUrl = portalurl.trim().replace(/\/+$/, "");
+
+        // Ensure it ends with /c if not already present
+        if (!normalizedUrl.endsWith("/c")) {
+          normalizedUrl += "/c";
+        }
+
         const token = await $fetch("/api/stalker/handshake", {
           method: "POST",
-          body: { portalurl, macaddress },
+          body: {
+            portalurl: normalizedUrl,
+            macaddress,
+          },
         });
 
-        this.token = token;
-        this.portalurl = portalurl;
-        this.macaddress = macaddress;
-
-        if (this.token) {
+        if (token) {
+          this.token = token;
+          this.portalurl = normalizedUrl;
+          this.macaddress = macaddress;
+          console.log(`Handshake successful`);
           return { success: true };
         }
       } catch (err: any) {

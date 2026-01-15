@@ -12,11 +12,11 @@
           color="gray"
           variant="ghost"
           size="sm"
-          @click="stalker.modalOpen = false"
+          @click="closeModal"
         />
       </div>
-      <p v-if="stalker.selectedCategory" class="text-sm text-gray-400 mt-1">
-        {{ stalker.selectedCategory.title }}
+      <p v-if="selectedCategory" class="text-sm text-gray-400 mt-1">
+        {{ selectedCategory.title || selectedCategory.category_name }}
       </p>
     </div>
 
@@ -24,18 +24,18 @@
     <div class="channels-list flex-1 overflow-y-auto p-4">
       <div
         v-for="channel in availableChannels"
-        :key="channel?.id || Math.random()"
+        :key="channel?.stream_id || channel?.id"
         class="channel-item mb-3 p-3 rounded-lg cursor-pointer transition-all duration-200 bg-gray-700/50 dark:bg-gray-800/50 hover:bg-primary-600/30 dark:hover:bg-primary-700/30 border border-transparent hover:border-primary-500"
         :class="{
           'bg-primary-600/50 dark:bg-primary-700/50 border-primary-500':
-            currentChannel?.id === channel?.id,
+            isCurrentChannel(channel),
         }"
         @click="switchChannel(channel)"
       >
         <div class="flex items-center gap-3">
           <img
-            v-if="channel.logo"
-            :src="channel.logo"
+            v-if="getChannelLogo(channel)"
+            :src="getChannelLogo(channel)"
             :alt="channel.name"
             class="w-16 h-16 rounded-lg object-contain bg-gray-600 dark:bg-gray-700 p-1 shrink-0"
             onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
@@ -52,7 +52,7 @@
             </p>
           </div>
           <Icon
-            v-if="currentChannel?.id === channel?.id"
+            v-if="isCurrentChannel(channel)"
             name="i-lucide-play-circle"
             class="w-5 h-5 text-primary-400 shrink-0"
           />
@@ -72,28 +72,86 @@
 
 <script setup lang="ts">
 const stalker = useStalkerStore();
-const selectedCategory = computed(() => stalker.selectedCategory);
-const currentChannel = computed(() => stalker.currentChannel);
+const xtream = useXtreamStore();
+
+// Determine which provider is active
+const providerType = computed(() => {
+  if (stalker.token) return "stalker";
+  if (xtream.isAuthenticated) return "xtream";
+  return null;
+});
+
+const selectedCategory = computed(() => {
+  return providerType.value === "stalker"
+    ? stalker.selectedCategory
+    : xtream.selectedCategory;
+});
+
+const currentChannel = computed(() => {
+  return providerType.value === "stalker"
+    ? stalker.currentChannel
+    : xtream.currentStream;
+});
 
 const availableChannels = computed(() => {
   if (!selectedCategory.value) return [];
-  const key = `${selectedCategory.value.id}_1`;
-  const channels = stalker.liveItems[key];
-  if (!channels || !Array.isArray(channels)) {
-    return [];
+
+  if (providerType.value === "stalker") {
+    const key = `${selectedCategory.value.id}_1`;
+    const channels = stalker.liveItems[key];
+    return Array.isArray(channels) ? channels : [];
+  } else if (providerType.value === "xtream") {
+    const key = `cat_${
+      selectedCategory.value.category_id || selectedCategory.value.id
+    }`;
+    const channels = xtream.liveStreams[key];
+    return Array.isArray(channels) ? channels : [];
   }
-  return channels;
+
+  return [];
 });
 
-async function switchChannel(channel: any) {
-  if (!channel || !channel.cmd) return;
-
-  stalker.currentChannel = channel;
-  await stalker.createLink(channel.cmd, "itv");
-
-  if (!stalker.modalOpen) {
-    stalker.modalOpen = true;
+function getChannelLogo(channel: any): string {
+  if (providerType.value === "stalker") {
+    return channel.logo || "";
+  } else if (providerType.value === "xtream") {
+    return channel.stream_icon || "";
   }
+  return "";
+}
+
+function isCurrentChannel(channel: any): boolean {
+  if (!currentChannel.value) return false;
+
+  if (providerType.value === "stalker") {
+    return currentChannel.value.id === channel.id;
+  } else if (providerType.value === "xtream") {
+    return currentChannel.value.stream_id === channel.stream_id;
+  }
+
+  return false;
+}
+
+async function switchChannel(channel: any) {
+  if (!channel) return;
+
+  if (providerType.value === "stalker") {
+    if (!channel.cmd) return;
+    stalker.currentChannel = channel;
+    await stalker.createLink(channel.cmd, "itv");
+    if (!stalker.modalOpen) {
+      stalker.modalOpen = true;
+    }
+  } else if (providerType.value === "xtream") {
+    await xtream.playLiveStream(channel);
+  }
+}
+
+function closeModal() {
+  if (providerType.value === "stalker") {
+    stalker.modalOpen = false;
+  }
+  // Add xtream modal close logic when implemented
 }
 </script>
 
