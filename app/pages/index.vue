@@ -132,14 +132,14 @@ const providerType = ref<"stalker" | "xtream">("stalker");
 const isLoading = ref(false);
 
 // Stalker credentials
-const stalkerPortal = ref("http://globaltv1.net:8080/c");
-const stalkerMac = ref("00:1A:79:14:DF:0A");
+const stalkerPortal = ref("c");
+const stalkerMac = ref("");
 
 // Xtream credentials
 const xtreaminputUrl = ref("");
-const xtreamUrl = ref("http://yesme.shop:80");
-const xtreamUsername = ref("96511amanda");
-const xtreamPassword = ref("16756643");
+const xtreamUrl = ref("");
+const xtreamUsername = ref("");
+const xtreamPassword = ref("");
 
 async function handleLogin() {
   isLoading.value = true;
