@@ -177,9 +177,7 @@
       <div v-if="selectedTab == 'live-tv'">
         <Live />
       </div>
-      <div v-if="selectedTab == 'movies'">
-        <Movies />
-      </div>
+      <div v-if="selectedTab == 'movies'" @scroll="onScroll"><Movies /></div>
       <div v-if="selectedTab == 'series'">
         <Series />
       </div>
@@ -333,11 +331,11 @@ function setSelectedTab(tab: string) {
   search.value = "";
 
   if (tab === "live-tv" && filteredLiveCategories.value.length > 0) {
-    setSelectedCategory(filteredLiveCategories.value[0]);
+    setSelectedCategory(filteredLiveCategories.value[1]);
   } else if (tab === "movies" && filteredMoviesCategories.value.length > 0) {
-    setSelectedCategory(filteredMoviesCategories.value[0]);
+    setSelectedCategory(filteredMoviesCategories.value[1]);
   } else if (tab === "series" && filteredSeriesCategories.value.length > 0) {
-    setSelectedCategory(filteredSeriesCategories.value[0]);
+    setSelectedCategory(filteredSeriesCategories.value[1]);
   }
 }
 

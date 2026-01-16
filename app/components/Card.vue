@@ -19,7 +19,7 @@
       ></div>
 
       <!-- Image -->
-      <img
+      <NuxtImg
         v-if="image"
         :src="image"
         :alt="name"
