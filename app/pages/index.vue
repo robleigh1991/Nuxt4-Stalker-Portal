@@ -132,7 +132,7 @@ const providerType = ref<"stalker" | "xtream">("stalker");
 const isLoading = ref(false);
 
 // Stalker credentials
-const stalkerPortal = ref("http://globaltv1.net:8080/c");
+const stalkerPortal = ref("http://delta8k.xyz");
 const stalkerMac = ref("00:1A:79:14:DF:0A");
 
 // Xtream credentials
