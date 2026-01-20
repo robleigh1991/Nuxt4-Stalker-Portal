@@ -108,7 +108,7 @@ let stopWatcher: (() => void) | null = null;
 
 const proxyUrl = computed(() => {
   if (!sourceUrl.value) return "";
-  return 'https://proxy.streamflix.uk/proxy.php?url=' + encodeURIComponent(sourceUrl.value);
+ return `/api/stream-proxy?url=${encodeURIComponent(sourceUrl.value)}`;
 });
 
 const options = {
@@ -247,7 +247,7 @@ const loadSource = async (url: string) => {
 
       // Set new source
       const newSource = document.createElement("source");
-      newSource.src = 'https://proxy.streamflix.uk/proxy.php?url=' + encodeURIComponent(url)
+      newSource.src = `/api/stream-proxy?url=${encodeURIComponent(url)}`
       newSource.type = "application/x-mpegURL";
       videoElement.value?.appendChild(newSource);
 
@@ -255,7 +255,7 @@ const loadSource = async (url: string) => {
         type: "video",
         sources: [
           {
-            src: 'https://proxy.streamflix.uk/proxy.php?url=' + encodeURIComponent(url),
+            src: `/api/stream-proxy?url=${encodeURIComponent(url)}`,
             type: "application/x-mpegURL",
           },
         ],
