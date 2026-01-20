@@ -4,7 +4,76 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js&labelColor=2C3E50)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&labelColor=1E3A8A)](https://www.typescriptlang.org/)
 
+> ⚠️ **IMPORTANT LEGAL DISCLAIMER**
+> 
+> This software is provided **FOR EDUCATIONAL AND DEVELOPMENT PURPOSES ONLY**. 
+>
+> - This application is a technical demonstration and learning tool for streaming protocols and modern web development practices
+> - Users are **solely responsible** for ensuring they have proper legal rights and licenses for any content they access
+> - The developers and contributors of this project **do not condone or support** piracy or unauthorized content distribution
+> - This software does **NOT** provide, host, or distribute any content - it is simply a player interface
+> - Users must comply with all applicable copyright laws and terms of service in their jurisdiction
+> - Commercial use or distribution of this software for accessing unauthorized content is **strictly prohibited**
+> - By using this software, you agree to use it only with content you have legal rights to access
+>
+> **The authors and contributors accept NO liability for misuse of this software.**
+
 A modern, high-performance IPTV streaming application built with Nuxt 3, featuring support for multiple providers (Stalker Portal & Xtream Codes), virtual scrolling for optimal memory usage, and a Netflix-inspired UI.
+
+## ⚖️ Legal Notice
+
+### Terms of Use
+
+By accessing or using this software, you acknowledge and agree to the following:
+
+1. **Educational Purpose**: This software is intended solely for educational, development, and testing purposes to demonstrate modern web technologies and streaming protocols.
+
+2. **Content Responsibility**: You are solely responsible for:
+   - Ensuring you have legal rights to access any content through this application
+   - Complying with all applicable copyright laws and regulations
+   - Respecting intellectual property rights of content creators
+   - Adhering to terms of service of any streaming providers you connect to
+
+3. **No Content Provided**: This application does NOT:
+   - Provide any streaming content
+   - Host any media files
+   - Distribute copyrighted material
+   - Include or link to unauthorized content sources
+
+4. **No Warranty**: This software is provided "AS IS" without warranty of any kind, either express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement.
+
+5. **Limitation of Liability**: In no event shall the authors or copyright holders be liable for any claim, damages, or other liability arising from the use or misuse of this software.
+
+6. **Acceptable Use**: You may use this software only for:
+   - Personal development and learning
+   - Testing streaming protocols
+   - Connecting to services you have legitimate subscriptions to
+   - Educational research and demonstration
+
+7. **Prohibited Use**: You may NOT use this software for:
+   - Accessing copyrighted content without proper authorization
+   - Circumventing digital rights management (DRM) systems
+   - Commercial piracy or unauthorized distribution
+   - Any illegal activities
+
+### Developer Responsibility Statement
+
+The developers of this project:
+- Do not operate, manage, or have any affiliation with IPTV services
+- Do not endorse any specific IPTV provider or service
+- Provide this software as a technical demonstration only
+- Encourage users to support content creators through legal channels
+- Reserve the right to refuse support for any usage that violates these terms
+
+### Compliance
+
+Users must ensure their use of this software complies with:
+- Local, national, and international copyright laws
+- Digital Millennium Copyright Act (DMCA) or equivalent legislation in their jurisdiction
+- Terms of service of any streaming providers they connect to
+- All applicable intellectual property rights
+
+**If you do not agree with these terms, you must not use this software.**
 
 ## ✨ Features
 
@@ -57,6 +126,7 @@ A modern, high-performance IPTV streaming application built with Nuxt 3, featuri
 - pnpm 8.x or higher (recommended) or npm/yarn
 - Modern web browser with HLS support
 - PHP server for proxy (Apache/Nginx with PHP support)
+- **Legal access to content services**
 
 ## 🚀 Quick Start
 
@@ -212,6 +282,8 @@ nuxt-iptv-player/
 
 ## 🎯 Usage
 
+> **Reminder**: Only use this application with services you have legal access to and proper subscriptions for.
+
 ### 1. Authentication
 
 #### Stalker Portal
@@ -264,512 +336,6 @@ The application automatically handles playback:
 
 The app automatically detects which provider is authenticated and displays the appropriate content.
 
-## 🔧 Configuration
-
-### Virtual Scrolling Configuration
-
-Adjust performance settings in live/movies components:
-
-```vue
-<RecycleScroller
-  :items="filteredItems"
-  :item-size="240"
-  <!--
-  Height
-  per
-  row
-  in
-  pixels
-  --
->
-  key-field="uniqueId"
-  :buffer="400"                 <!-- Buffer zone for smooth scrolling -->
-  v-slot="{ item, index }"
->
-  <!-- Your content here -->
-</RecycleScroller>
-```
-
-**Performance Tips:**
-
-- `item-size`: Increase for taller cards (240-340px recommended)
-- `buffer`: Higher values = smoother scrolling but more memory (200-600px recommended)
-- Adjust `columnsCount` based on your card width
-
-### Video Player Options
-
-Customize Plyr player in `VideoPlayer.vue`:
-
-```javascript
-const options = {
-  controls: [
-    "play-large", // Large play button in center
-    "play", // Play/pause button
-    "progress", // Progress bar
-    "current-time", // Current time display
-    "mute", // Mute button
-    "volume", // Volume control
-    "settings", // Settings menu
-    "fullscreen", // Fullscreen button
-    "pip", // Picture-in-picture
-  ],
-  settings: ["quality", "speed"],
-  quality: {
-    default: 720,
-    options: [1080, 720, 480, 360],
-  },
-  speed: {
-    selected: 1,
-    options: [0.5, 0.75, 1, 1.25, 1.5, 2],
-  },
-};
-```
-
-### Card Design Customization
-
-Modify the card appearance in `components/Card.vue`:
-
-```vue
-<!-- Adjust aspect ratio -->
-<div class="relative aspect-[3/4] overflow-hidden bg-gray-900">
-  <!-- aspect-[16/9] for landscape -->
-  <!-- aspect-[2/3] for portrait -->
-  <!-- aspect-[3/4] for standard poster -->
-</div>
-```
-
-### Grid Layout
-
-Customize grid columns in your components:
-
-```vue
-<div
-  class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
->
-  <!-- Breakpoints:
-       sm: 640px - 2 columns
-       md: 768px - 3 columns
-       lg: 1024px - 4 columns
-       xl: 1280px - 6 columns
-  -->
-</div>
-```
-
-## 📦 Production Build
-
-### Build for Production
-
-```bash
-# Build the application
-pnpm build
-
-# Preview production build locally
-pnpm preview
-```
-
-### Optimize Build
-
-In `nuxt.config.ts`:
-
-```typescript
-export default defineNuxtConfig({
-  nitro: {
-    compressPublicAssets: true,
-    minify: true,
-  },
-  vite: {
-    build: {
-      cssCodeSplit: true,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            "vue-vendor": ["vue", "vue-router"],
-            player: ["plyr"],
-            scroller: ["vue-virtual-scroller"],
-          },
-        },
-      },
-    },
-  },
-});
-```
-
-## 🚢 Deployment
-
-### Vercel
-
-1. Push your code to GitHub
-2. Import project in Vercel
-3. Configure build settings:
-   - Build Command: `pnpm build`
-   - Output Directory: `.output/public`
-4. Add environment variables
-5. Deploy
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/nuxt-iptv-player)
-
-### Docker
-
-Create `Dockerfile`:
-
-```dockerfile
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-COPY package*.json pnpm-lock.yaml ./
-RUN npm install -g pnpm
-RUN pnpm install --frozen-lockfile
-
-COPY . .
-RUN pnpm build
-
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY --from=builder /app/.output ./.output
-COPY --from=builder /app/backend ./backend
-
-EXPOSE 3000
-
-ENV NUXT_HOST=0.0.0.0
-ENV NUXT_PORT=3000
-
-CMD ["node", ".output/server/index.mjs"]
-```
-
-Build and run:
-
-```bash
-# Build image
-docker build -t nuxt-iptv-player .
-
-# Run container
-docker run -p 3000:3000 -d nuxt-iptv-player
-```
-
-### Docker Compose
-
-Create `docker-compose.yml`:
-
-```yaml
-version: "3.8"
-
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NUXT_PUBLIC_API_BASE=http://your-backend
-      - NUXT_PUBLIC_PROXY_URL=http://localhost/backend/proxy.php
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./backend:/var/www/html/backend
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - app
-    restart: unless-stopped
-```
-
-### Netlify
-
-1. Build Command: `pnpm build`
-2. Publish Directory: `.output/public`
-3. Add environment variables
-4. Deploy
-
-### Other Platforms
-
-Check the [Nuxt deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more options:
-
-- AWS
-- Azure
-- Cloudflare Pages
-- DigitalOcean
-- Heroku
-- Railway
-
-## 🔌 Dependencies
-
-### Core Framework
-
-```json
-{
-  "nuxt": "^3.x",
-  "vue": "^3.x",
-  "@nuxt/ui": "^2.x"
-}
-```
-
-### Video & Streaming
-
-```json
-{
-  "plyr": "^3.7.8"
-}
-```
-
-### Performance & Utilities
-
-```json
-{
-  "vue-virtual-scroller": "^2.0.0-beta.8",
-  "lodash-es": "^4.17.21"
-}
-```
-
-### State Management
-
-```json
-{
-  "pinia": "^2.x",
-  "@pinia/nuxt": "^0.5.x"
-}
-```
-
-## 🐛 Troubleshooting
-
-### High Memory Usage
-
-**Problem**: Browser tab using 2GB+ of memory
-
-**Solutions**:
-
-1. Ensure virtual scrolling is implemented in all list components
-2. Verify `RecycleScroller` is properly configured
-3. Check that old components are being destroyed (`onUnmounted` hooks)
-4. Clear browser cache and hard reload (Ctrl+Shift+R)
-5. Reduce the `buffer` value in RecycleScroller (try 200-300px)
-
-### Video Playback Issues
-
-**Problem**: Video won't play or shows errors
-
-**Solutions**:
-
-1. **CORS Errors**:
-
-   - Verify `proxy.php` is accessible
-   - Check Apache/Nginx PHP configuration
-   - Ensure CORS headers are set correctly
-
-2. **Format Not Supported**:
-
-   - Verify stream is HLS format (.m3u8)
-   - Check browser HLS support
-   - Try different quality setting
-
-3. **Loading Timeout**:
-
-   - Check internet connection
-   - Verify stream URL is valid
-   - Try the retry button
-   - Check proxy.php error logs
-
-4. **Black Screen**:
-   - Open browser console (F12)
-   - Check for JavaScript errors
-   - Verify Plyr loaded correctly
-   - Check network tab for failed requests
-
-### Authentication Issues
-
-**Stalker Portal**:
-
-- Verify portal URL includes protocol (`http://` or `https://`)
-- Check MAC address format: `XX:XX:XX:XX:XX:XX`
-- Ensure portal is online and accessible
-- Try with different MAC address
-
-**Xtream Codes**:
-
-- Verify server URL includes port (e.g., `:8080`)
-- Check username and password are correct
-- Ensure account is active
-- Test credentials in browser: `http://server:port/player_api.php?username=X&password=Y`
-
-### Virtual Scrolling Issues
-
-**Problem**: Scrolling is jumpy or items not rendering
-
-**Solutions**:
-
-1. Ensure each item has unique `uniqueId`
-2. Check `item-size` matches actual row height
-3. Verify `key-field` is set correctly
-4. Try increasing `buffer` value
-5. Make sure parent container has defined height
-
-### Image Loading Problems
-
-**Problem**: Images not loading or broken
-
-**Solutions**:
-
-1. Check image URLs in network tab
-2. Verify proxy is handling image requests
-3. Ensure `onerror` handler is working
-4. Check if images need authentication
-5. Try using DuckDuckGo proxy for external images:
-
-```typescript
-`https://proxy.duckduckgo.com/iu/?u=${imageUrl}`;
-```
-
-### Performance Issues
-
-**Problem**: App is slow or laggy
-
-**Solutions**:
-
-1. Enable virtual scrolling on all large lists
-2. Implement lazy loading for images
-3. Reduce number of items loaded initially
-4. Use pagination for very large lists
-5. Optimize card component (reduce DOM elements)
-6. Check browser extensions (disable ad blockers for testing)
-7. Use production build instead of dev mode
-
-## 📊 Performance Benchmarks
-
-### Before Optimization
-
-- Memory Usage: ~2GB
-- Initial Load: 15-20 seconds
-- Scroll FPS: 15-20 FPS
-- DOM Nodes: 50,000+
-
-### After Optimization (Virtual Scrolling)
-
-- Memory Usage: ~100-200MB (90% reduction)
-- Initial Load: 2-3 seconds (85% faster)
-- Scroll FPS: 55-60 FPS (smooth)
-- DOM Nodes: ~100-200 (only visible items)
-
-## 🛠️ Development
-
-### Project Setup
-
-```bash
-# Install dependencies
-pnpm install
-
-# Start dev server with HMR
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Preview production build
-pnpm preview
-
-# Run linter
-pnpm lint
-
-# Run type check
-pnpm typecheck
-```
-
-### Adding New Features
-
-1. Create feature branch
-
-```bash
-git checkout -b feature/your-feature-name
-```
-
-2. Make your changes
-
-3. Test thoroughly
-
-4. Commit with clear message
-
-```bash
-git commit -m "feat: add awesome feature"
-```
-
-5. Push and create pull request
-
-```bash
-git push origin feature/your-feature-name
-```
-
-### Code Style
-
-This project uses:
-
-- ESLint for code linting
-- Prettier for code formatting
-- TypeScript for type safety
-- Conventional Commits for commit messages
-
-## 📝 API Documentation
-
-### Stalker Portal Store
-
-```typescript
-// Authentication
-await stalker.authenticate({ portalUrl, macAddress });
-
-// Load categories
-await stalker.loadGenres("itv" | "vod" | "series");
-
-// Get items by category
-await stalker.getOrderedList(genreId, page);
-
-// Create play link
-await stalker.createLink(cmd, "itv" | "vod");
-
-// Get series info
-await stalker.getSeriesInfo(seriesId);
-```
-
-### Xtream Codes Store
-
-```typescript
-// Authentication
-await xtream.authenticate({ serverUrl, username, password });
-
-// Get live streams by category
-await xtream.getLiveStreams(categoryId);
-
-// Get VOD streams by category
-await xtream.getVodStreams(categoryId);
-
-// Get series by category
-await xtream.getSeries(categoryId);
-
-// Play stream
-await xtream.playLiveStream(stream);
-await xtream.playVodStream(vodItem);
-```
-
-## 🧪 Testing
-
-### Manual Testing Checklist
-
-- [ ] Authentication with Stalker Portal
-- [ ] Authentication with Xtream Codes
-- [ ] Load live channels
-- [ ] Load movies/VOD
-- [ ] Load TV series
-- [ ] Search functionality
-- [ ] Play live channel
-- [ ] Play movie
-- [ ] Play series episode
-- [ ] Video player controls
-- [ ] Quality selection
-- [ ] Error handling
-- [ ] Responsive design (mobile/tablet/desktop)
-- [ ] Memory usage monitoring
-
 ## 📄 License
 
 MIT License
@@ -794,9 +360,19 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+**ADDITIONAL TERMS**: This software is intended for educational and development purposes only. Users are solely responsible for ensuring they have proper legal rights to access any content through this application. The authors do not condone piracy or unauthorized content distribution.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Here's how you can help:
+
+### Code of Conduct
+
+All contributors must:
+- Respect intellectual property rights
+- Not promote or facilitate piracy
+- Follow ethical development practices
+- Comply with all applicable laws
 
 ### Reporting Bugs
 
@@ -813,7 +389,7 @@ Contributions are welcome! Here's how you can help:
 1. Check if feature is already requested
 2. Create a new issue with:
    - Clear description of the feature
-   - Use cases and benefits
+   - Use cases and benefits (must be legal and ethical)
    - Possible implementation approach
 
 ### Pull Requests
@@ -826,6 +402,7 @@ Contributions are welcome! Here's how you can help:
    - Clear description of changes
    - Screenshots/GIFs for UI changes
    - Link to related issues
+   - Confirmation that changes comply with project ethics
 
 ## 🙏 Acknowledgments
 
@@ -839,31 +416,30 @@ Contributions are welcome! Here's how you can help:
 
 ## 📧 Support
 
-- 📫 Email: your-email@example.com
-- 💬 Discord: [Join our server](#)
+For development and educational inquiries only:
+
 - 🐛 Issues: [GitHub Issues](https://github.com/your-username/nuxt-iptv-player/issues)
 - 📖 Documentation: [Wiki](https://github.com/your-username/nuxt-iptv-player/wiki)
 
+**Note**: Support is provided for technical/development questions only. We cannot and will not provide support for accessing unauthorized content.
+
 ## 🌟 Show Your Support
 
-Give a ⭐️ if this project helped you!
+Give a ⭐️ if this project helped you learn about modern web development and streaming technologies!
 
-## 📸 Screenshots
+## ⚠️ Final Reminder
 
-### Live Channels
+**This software is a development tool and educational resource.**
 
-![Live Channels](https://via.placeholder.com/1200x630/1a1a1a/00DC82?text=Live+Channels+View)
+- Always respect copyright and intellectual property
+- Only access content you have legal rights to
+- Support content creators through legitimate channels
+- Use responsibly and ethically
 
-### Movies Library
-
-![Movies](https://via.placeholder.com/1200x630/1a1a1a/00DC82?text=Movies+Library)
-
-### Video Player
-
-![Player](https://via.placeholder.com/1200x630/1a1a1a/00DC82?text=Video+Player)
+**The developers are not responsible for how you choose to use this software.**
 
 ---
 
-**Made with ❤️ using Nuxt and Vue.js**
+**Made with ❤️ using Nuxt and Vue.js for Educational Purposes**
 
 _Last updated: January 2026_
