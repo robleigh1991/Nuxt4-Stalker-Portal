@@ -12,6 +12,19 @@ export default defineEventHandler(async (event) => {
     return cmd;
   }
 
+  // If cmd is already a full HTTP URL (tokenized stream), return it directly
+  if (cmd.startsWith("http://") || cmd.startsWith("https://")) {
+    console.log("🔗 Direct tokenized URL detected:", cmd);
+    
+    // These are usually already valid stream URLs
+    // Just ensure we're not getting a .ts segment URL
+    if (cmd.match(/\.ts$/i) && !cmd.includes('.m3u8')) {
+      console.warn("⚠️ Direct .ts file detected - may need playlist");
+    }
+    
+    return cmd.replace(/ffmpeg/gi, "");
+  }
+
   let fullUrl;
 
   // Check if this is a stalker_portal type URL
@@ -29,8 +42,8 @@ export default defineEventHandler(async (event) => {
     method: "GET",
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
-      "X-User-Agent": "Model: MAG250; Link: WiFi",
+        "Mozilla/5.0 (QtEmbedded; Linux; U) AppleWebKit/537.3 (KHTML, like Gecko) MAG254 stbapp ver: 4 rev: 1812 Safari/537.3",
+      "X-User-Agent": "Model: MAG254; Link: Ethernet",
       Authorization: `Bearer ${token}`,
       Cookie: `mac=${macaddress}; stb_lang=en; timezone=GMT`,
       Referer: portalurl.endsWith("/c") ? portalurl + "/" : portalurl,
@@ -55,13 +68,24 @@ export default defineEventHandler(async (event) => {
 
   let sourceLink = response.js.cmd;
 
+  console.log("📺 Source link from API:", sourceLink);
+
+  // If we got a tokenized URL directly, return it
+  if (sourceLink.startsWith("http://") || sourceLink.startsWith("https://")) {
+    console.log("🔗 Tokenized URL from API");
+    return sourceLink.replace(/ffmpeg/gi, "");
+  }
+
   // ---- FORCE HLS (.m3u8) ------------------------------------
   // 1) If the command contains an extension param, flip it
   if (sourceLink.includes("extension=")) {
     sourceLink = sourceLink.replace(/extension=ts/gi, "extension=m3u8");
   }
+  
   // remove ffmpeg from the source link
   sourceLink = sourceLink.replace(/ffmpeg/gi, "");
+
+  console.log("✅ Final source link:", sourceLink);
 
   return sourceLink;
 });

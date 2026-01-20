@@ -5,6 +5,7 @@ useHead({
   htmlAttrs: {
     lang: "en",
   },
+  script: [{ hid: "mpegts", src: "https://esm.run/mpegts-video-element", defer: true }],
 });
 
 const title = "Nuxt Starter Template";

@@ -136,7 +136,6 @@ async function switchChannel(channel: any) {
   if (!channel) return;
 
   if (providerType.value === "stalker") {
-    if (!channel.cmd) return;
     stalker.currentChannel = channel;
     await stalker.createLink(channel.cmd, "itv");
     if (!stalker.modalOpen) {

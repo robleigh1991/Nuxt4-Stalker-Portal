@@ -1,45 +1,5 @@
 <template>
   <div class="video-section flex-1 flex flex-col relative overflow-hidden">
-    <!-- Error Overlay -->
-    <div
-      v-if="errorState.hasError"
-      class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-    >
-      <div class="text-center p-8 max-w-md">
-        <div class="mb-4">
-          <svg
-            class="w-16 h-16 mx-auto text-red-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </div>
-        <h3 class="text-xl font-bold text-white mb-2">Playback Error</h3>
-        <p class="text-gray-300 mb-4">{{ errorState.message }}</p>
-        <div class="flex gap-3 justify-center">
-          <button
-            @click="retryPlayback"
-            class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            Retry
-          </button>
-          <button
-            @click="clearError"
-            class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-          >
-            Dismiss
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Loading Overlay -->
     <div
       v-if="isLoading"
@@ -84,8 +44,8 @@
     >
       <div class="flex items-center gap-4">
         <img
-          v-if="currentChannel.logo"
-          :src="currentChannel.logo"
+          v-if="currentChannel.logo || currentChannel.screenshot_uri"
+          :src="currentChannel.logo || currentChannel.screenshot_uri"
           :alt="currentChannel.name"
           class="w-12 h-12 rounded-lg object-contain bg-gray-700 p-1"
           onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
@@ -109,8 +69,8 @@
 <script setup lang="ts">
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
+const toast = useToast();
 
-// Determine active provider
 const providerType = computed(() => {
   if (stalker.token) return "stalker";
   if (xtream.isAuthenticated) return "xtream";
@@ -124,9 +84,10 @@ const sourceUrl = computed(() => {
 });
 
 const currentChannel = computed(() => {
-  return providerType.value === "stalker"
-    ? stalker.currentChannel
-    : xtream.currentStream;
+  if (providerType.value === "stalker") {
+    return stalker.currentChannel || stalker.currentMovie || stalker.currentSeries;
+  }
+  return xtream.currentStream;
 });
 
 const modalOpen = computed(() => {
@@ -138,11 +99,6 @@ const modalOpen = computed(() => {
 const videoElement = ref<HTMLVideoElement | null>(null);
 const isLoading = ref(false);
 const isComponentMounted = ref(false);
-const errorState = reactive({
-  hasError: false,
-  message: "",
-  code: null as number | null,
-});
 
 let player: any = null;
 let retryCount = 0;
@@ -152,10 +108,7 @@ let stopWatcher: (() => void) | null = null;
 
 const proxyUrl = computed(() => {
   if (!sourceUrl.value) return "";
-  return (
-    "http://nuxt4iptv.test/backend/proxy.php?url=" +
-    encodeURIComponent(sourceUrl.value)
-  );
+  return sourceUrl.value;
 });
 
 const options = {
@@ -179,15 +132,12 @@ const options = {
 
 const getErrorMessage = (code: number): string => {
   const errorMessages: Record<number, string> = {
-    1: "The video loading was aborted. Please try again.",
-    2: "A network error occurred while loading the video. Check your connection.",
-    3: "The video format is not supported or the file is corrupted.",
-    4: "The video source is not available or cannot be found.",
+    1: "Video loading was aborted.",
+    2: "Network error occurred. Check your connection.",
+    3: "Video format not supported or file corrupted.",
+    4: "Video source not available.",
   };
-  return (
-    errorMessages[code] ||
-    "An unknown error occurred. Please try again or contact support."
-  );
+  return errorMessages[code] || "An unknown error occurred.";
 };
 
 const handleError = (event: any) => {
@@ -196,12 +146,17 @@ const handleError = (event: any) => {
   const errorCode = videoElement.value?.error?.code || event.detail?.plyr?.code;
 
   if (errorCode) {
-    errorState.hasError = true;
-    errorState.code = errorCode;
-    errorState.message = getErrorMessage(errorCode);
+    console.error(`Playback error code ${errorCode}`);
+    
+    toast.add({
+      title: "Playback Error",
+      description: getErrorMessage(errorCode),
+      color: "red",
+      timeout: 5000,
+    });
+    
     isLoading.value = false;
     clearLoadingTimeout();
-    console.error(`Playback error code ${errorCode}:`, errorState.message);
   }
 };
 
@@ -225,34 +180,32 @@ const setLoadingWithTimeout = (duration: number = 15000) => {
       console.warn("Loading timeout exceeded");
       isLoading.value = false;
 
-      // If video is still not playing, show error
-      if (player && player.paused && !errorState.hasError) {
-        errorState.hasError = true;
-        errorState.message =
-          "Stream loading timeout. The stream may be slow or unavailable.";
+      if (player && player.paused) {
+        toast.add({
+          title: "Loading Timeout",
+          description: "Stream loading timeout. The stream may be unavailable.",
+          color: "red",
+          timeout: 5000,
+        });
       }
     }
   }, duration);
-};
-
-const clearError = () => {
-  errorState.hasError = false;
-  errorState.message = "";
-  errorState.code = null;
-  retryCount = 0;
-  clearLoadingTimeout();
 };
 
 const retryPlayback = async () => {
   if (!isComponentMounted.value) return;
 
   if (retryCount >= MAX_RETRIES) {
-    errorState.message = `Failed after ${MAX_RETRIES} attempts. Please check your connection or try a different stream.`;
+    toast.add({
+      title: "Max Retries Reached",
+      description: `Failed after ${MAX_RETRIES} attempts. Please try a different stream.`,
+      color: "red",
+      timeout: 5000,
+    });
     return;
   }
 
   retryCount++;
-  clearError();
   setLoadingWithTimeout(20000);
 
   try {
@@ -261,10 +214,7 @@ const retryPlayback = async () => {
     }
   } catch (err) {
     if (!isComponentMounted.value) return;
-
     console.error("Retry failed:", err);
-    errorState.hasError = true;
-    errorState.message = "Retry failed. Please try again.";
   } finally {
     if (isComponentMounted.value) {
       clearLoadingTimeout();
@@ -274,8 +224,7 @@ const retryPlayback = async () => {
 };
 
 const loadSource = async (url: string) => {
-  if (!player || !videoElement.value || !url || !isComponentMounted.value)
-    return;
+  if (!player || !videoElement.value || !url || !isComponentMounted.value) return;
 
   return new Promise<void>(async (resolve, reject) => {
     try {
@@ -291,11 +240,6 @@ const loadSource = async (url: string) => {
         player.pause();
       }
 
-      if (!isComponentMounted.value) {
-        reject(new Error("Component unmounted"));
-        return;
-      }
-
       // Clear existing sources
       const existingSources = videoElement.value?.querySelectorAll("source");
       existingSources?.forEach((src) => src.remove());
@@ -303,9 +247,7 @@ const loadSource = async (url: string) => {
 
       // Set new source
       const newSource = document.createElement("source");
-      newSource.src =
-        "http://nuxt4iptv.test/backend/proxy.php?url=" +
-        encodeURIComponent(url);
+      newSource.src = url;
       newSource.type = "application/x-mpegURL";
       videoElement.value?.appendChild(newSource);
 
@@ -313,9 +255,7 @@ const loadSource = async (url: string) => {
         type: "video",
         sources: [
           {
-            src:
-              "http://nuxt4iptv.test/backend/proxy.php?url=" +
-              encodeURIComponent(url),
+            src: url,
             type: "application/x-mpegURL",
           },
         ],
@@ -392,8 +332,12 @@ const loadSource = async (url: string) => {
           }
         }, 1000);
       } else {
-        errorState.hasError = true;
-        errorState.message = err.message || "Failed to load video stream.";
+        toast.add({
+          title: "Failed to Load",
+          description: err.message || "Failed to load video stream.",
+          color: "red",
+          timeout: 5000,
+        });
       }
 
       reject(err);
@@ -414,14 +358,13 @@ onMounted(async () => {
 
       player.on("ready", () => {
         if (!isComponentMounted.value) return;
-        console.log("Plyr player is ready");
+        console.log("Plyr player ready");
         clearLoadingTimeout();
         isLoading.value = false;
       });
 
       player.on("loadstart", () => {
         if (!isComponentMounted.value) return;
-        console.log("Plyr started loading source");
         setLoadingWithTimeout(20000);
       });
 
@@ -433,7 +376,6 @@ onMounted(async () => {
 
       player.on("playing", () => {
         if (!isComponentMounted.value) return;
-        clearError();
         clearLoadingTimeout();
         isLoading.value = false;
       });
@@ -449,32 +391,6 @@ onMounted(async () => {
         }, 500);
       });
 
-      player.on("seeking", () => {
-        if (!isComponentMounted.value) return;
-        console.log("User is seeking");
-        setLoadingWithTimeout(10000);
-      });
-
-      player.on("seeked", () => {
-        if (!isComponentMounted.value) return;
-        console.log("Seek completed");
-        clearLoadingTimeout();
-        setTimeout(() => {
-          if (!isComponentMounted.value) return;
-          if (!player.paused) {
-            isLoading.value = false;
-          }
-        }, 100);
-      });
-
-      player.on("stalled", () => {
-        if (!isComponentMounted.value) return;
-        console.warn("Playback stalled");
-        if (!errorState.hasError) {
-          setLoadingWithTimeout(15000);
-        }
-      });
-
       player.on("canplay", () => {
         if (!isComponentMounted.value) return;
         clearLoadingTimeout();
@@ -484,30 +400,29 @@ onMounted(async () => {
       });
 
       videoElement.value.addEventListener("error", handleError);
+      
+      console.log("Plyr initialized");
     } catch (error) {
       if (!isComponentMounted.value) return;
       console.error("Failed to load Plyr:", error);
-      errorState.hasError = true;
-      errorState.message = "Failed to initialize video player.";
+      toast.add({
+        title: "Initialization Error",
+        description: "Failed to initialize video player.",
+        color: "red",
+        timeout: 0,
+      });
     }
   }
 
-  // Setup watcher after mount
+  // Setup watcher
   stopWatcher = watch(sourceUrl, async (newUrl, oldUrl) => {
     if (!isComponentMounted.value || newUrl === oldUrl || !newUrl) return;
 
     setLoadingWithTimeout(20000);
-    clearError();
     retryCount = 0;
 
     if (player && videoElement.value) {
       await loadSource(newUrl);
-    } else if (newUrl && videoElement.value) {
-      await nextTick();
-
-      if (player && videoElement.value && isComponentMounted.value) {
-        await loadSource(newUrl);
-      }
     }
   });
 });
@@ -515,7 +430,6 @@ onMounted(async () => {
 onUnmounted(() => {
   isComponentMounted.value = false;
 
-  // Stop the watcher first
   if (stopWatcher) {
     stopWatcher();
     stopWatcher = null;
@@ -523,19 +437,8 @@ onUnmounted(() => {
 
   clearLoadingTimeout();
 
-  // Remove all event listeners before destroying
   if (player) {
     try {
-      player.off("error");
-      player.off("ready");
-      player.off("loadstart");
-      player.off("loadeddata");
-      player.off("playing");
-      player.off("waiting");
-      player.off("seeking");
-      player.off("seeked");
-      player.off("stalled");
-      player.off("canplay");
       player.destroy();
     } catch (err) {
       console.error("Error destroying player:", err);
@@ -546,12 +449,11 @@ onUnmounted(() => {
   if (videoElement.value) {
     try {
       videoElement.value.removeEventListener("error", handleError);
-      // Clear all sources
       const sources = videoElement.value.querySelectorAll("source");
       sources.forEach((src) => src.remove());
       videoElement.value.removeAttribute("src");
-      videoElement.value.load(); // Stop any loading
-      videoElement.value.pause(); // Ensure playback is stopped
+      videoElement.value.load();
+      videoElement.value.pause();
     } catch (err) {
       console.error("Error cleaning up video element:", err);
     }
@@ -566,10 +468,9 @@ onUnmounted(() => {
     xtream.currentStream = null;
     xtream.sourceUrl = null;
   }
-
-  clearError();
 });
 </script>
+
 <style scoped>
 .video-container {
   position: relative;
