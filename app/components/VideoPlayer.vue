@@ -247,7 +247,7 @@ const loadSource = async (url: string) => {
 
       // Set new source
       const newSource = document.createElement("source");
-      newSource.src = url;
+      newSource.src = 'https://proxy.streamflix.uk/proxy.php?url=' + encodeURIComponent(url)
       newSource.type = "application/x-mpegURL";
       videoElement.value?.appendChild(newSource);
 
@@ -255,7 +255,7 @@ const loadSource = async (url: string) => {
         type: "video",
         sources: [
           {
-            src: url,
+            src: 'https://proxy.streamflix.uk/proxy.php?url=' + encodeURIComponent(url),
             type: "application/x-mpegURL",
           },
         ],
