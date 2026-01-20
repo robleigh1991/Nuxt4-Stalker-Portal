@@ -101,7 +101,6 @@ async function setSelectedMovie(item: any) {
 
   // Validate item
   if (!item) {
-    console.error("Invalid item:", item);
     toast.add({
       title: "Error",
       description: "Invalid movie item",
@@ -120,27 +119,22 @@ async function setSelectedMovie(item: any) {
   selectedItem.value = item;
   isLoading.value = true;
 
-  console.log("Selected movie:", item);
-
   try {
     if (providerType.value === "stalker") {
       // Validate cmd exists
       if (!item.cmd) {
-        console.error("Movie missing cmd:", item);
         throw new Error("Movie command (cmd) is missing");
       }
 
-      console.log("Setting current movie and creating link for cmd:", item.cmd);
       stalker.currentMovie = item;
       
       // Call createLink with timeout protection
       const createLinkPromise = stalker.createLink(item.cmd, "vod");
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timeout after 15 seconds")), 15000)
+        setTimeout(() => reject(new Error("Request timeout")), 15000)
       );
 
-      const result = await Promise.race([createLinkPromise, timeoutPromise]);
-      console.log("CreateLink result:", result);
+      await Promise.race([createLinkPromise, timeoutPromise]);
 
       // Open modal only after successful link creation
       if (!stalker.modalOpen) {
@@ -174,20 +168,10 @@ async function setSelectedMovie(item: any) {
     selectedItem.value = null;
     if (providerType.value === "stalker") {
       stalker.currentMovie = null;
-      stalker.sourceUrl = null;
     }
 
     // Show user-friendly error message
-    let errorMessage = "Failed to load movie";
-    
-    if (error.message?.includes("timeout")) {
-      errorMessage = "Request timed out. Please try again.";
-    } else if (error.message?.includes("cmd")) {
-      errorMessage = "Movie data is incomplete";
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-
+    const errorMessage = error.message || "Failed to load movie";
     toast.add({
       title: "Playback Error",
       description: errorMessage,
