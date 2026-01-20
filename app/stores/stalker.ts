@@ -353,8 +353,17 @@ export const useStalkerStore = defineStore("stalker", {
     },
 
     async createLink(cmd: string, type: string) {
+      // Validation
+      if (!cmd || typeof cmd !== 'string') {
+        throw new Error('Invalid CMD parameter');
+      }
+
+      if (!this.portalurl || !this.macaddress || !this.token) {
+        throw new Error('Missing authentication credentials');
+      }
+
       try {
-        const link = await $fetch("/api/stalker/createlink", {
+        const response = await $fetch("/api/stalker/createlink", {
           method: "POST",
           body: {
             portalurl: this.portalurl,
@@ -365,17 +374,69 @@ export const useStalkerStore = defineStore("stalker", {
           },
         });
 
-        this.sourceUrl = link.replace(/ /g, "");
+        console.log('CreateLink response:', response);
+
+        // Handle different response formats
+        let url: string | null = null;
+
+        if (typeof response === 'string') {
+          // Direct string response
+          url = response;
+        } else if (response && typeof response === 'object') {
+          // Object response - try different possible properties
+          url = response.url || 
+                response.cmd || 
+                response.js?.cmd || 
+                response.js?.url ||
+                response.data?.url ||
+                response.data?.cmd;
+        }
+
+        if (!url || typeof url !== 'string') {
+          console.error('Invalid response format:', response);
+          throw new Error('No valid URL returned from server');
+        }
+
+        // Clean the URL
+        this.sourceUrl = url.replace(/ /g, "").trim();
+
+        // Validate the URL is not empty after cleaning
+        if (!this.sourceUrl) {
+          throw new Error('Empty URL after processing');
+        }
+
+        console.log('Source URL set to:', this.sourceUrl);
         return this.sourceUrl;
-      } catch (err) {
+
+      } catch (err: any) {
         console.error("Failed to create link:", err);
+        this.sourceUrl = null;
+        
+        // Provide better error messages
+        if (err.statusCode === 401) {
+          throw new Error('Authentication failed. Please reconnect.');
+        } else if (err.statusCode === 404) {
+          throw new Error('Stream not found');
+        } else if (err.statusCode >= 500) {
+          throw new Error('Server error. Please try again.');
+        }
+        
         throw err;
       }
     },
 
     async createSeriesLink(cmd: string, type: string, id: number) {
+      // Validation
+      if (!cmd || typeof cmd !== 'string') {
+        throw new Error('Invalid CMD parameter');
+      }
+
+      if (!this.portalurl || !this.macaddress || !this.token) {
+        throw new Error('Missing authentication credentials');
+      }
+
       try {
-        const link = await $fetch("/api/stalker/createserieslink", {
+        const response = await $fetch("/api/stalker/createserieslink", {
           method: "POST",
           body: {
             portalurl: this.portalurl,
@@ -387,10 +448,48 @@ export const useStalkerStore = defineStore("stalker", {
           },
         });
 
-        this.sourceUrl = link.replace(/ /g, "");
+        console.log('CreateSeriesLink response:', response);
+
+        // Handle different response formats
+        let url: string | null = null;
+
+        if (typeof response === 'string') {
+          url = response;
+        } else if (response && typeof response === 'object') {
+          url = response.url || 
+                response.cmd || 
+                response.js?.cmd || 
+                response.js?.url ||
+                response.data?.url ||
+                response.data?.cmd;
+        }
+
+        if (!url || typeof url !== 'string') {
+          console.error('Invalid response format:', response);
+          throw new Error('No valid URL returned from server');
+        }
+
+        this.sourceUrl = url.replace(/ /g, "").trim();
+
+        if (!this.sourceUrl) {
+          throw new Error('Empty URL after processing');
+        }
+
+        console.log('Source URL set to:', this.sourceUrl);
         return this.sourceUrl;
-      } catch (err) {
-        console.error("Failed to create link:", err);
+
+      } catch (err: any) {
+        console.error("Failed to create series link:", err);
+        this.sourceUrl = null;
+        
+        if (err.statusCode === 401) {
+          throw new Error('Authentication failed. Please reconnect.');
+        } else if (err.statusCode === 404) {
+          throw new Error('Episode not found');
+        } else if (err.statusCode >= 500) {
+          throw new Error('Server error. Please try again.');
+        }
+        
         throw err;
       }
     },
