@@ -108,7 +108,7 @@ let stopWatcher: (() => void) | null = null;
 
 const proxyUrl = computed(() => {
   if (!sourceUrl.value) return "";
-  return sourceUrl.value;
+  return 'https://proxy.streamflix.uk/proxy.php?url=' + encodeURIComponent(sourceUrl.value);
 });
 
 const options = {
