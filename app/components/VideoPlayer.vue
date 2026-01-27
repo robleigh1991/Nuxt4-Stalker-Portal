@@ -174,13 +174,14 @@ const handleError = async (event: any) => {
   let httpStatus: number | undefined;
   let errorMessage = '';
 
-  // Try to detect HTTP errors from the stream URL
-  if (sourceUrl.value) {
+  // Try to detect HTTP errors from the stream URL (only on actual playback errors)
+  // We only check this if we have a media error, not on initial load failures
+  if (sourceUrl.value && errorCode) {
     try {
       // Attempt to fetch the stream URL to get HTTP status
       const response = await fetch(proxyUrl.value, { 
         method: 'HEAD',
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(3000)
       });
       
       if (!response.ok) {
@@ -188,12 +189,8 @@ const handleError = async (event: any) => {
         console.error(`[VideoPlayer] HTTP Error ${httpStatus} for URL:`, proxyUrl.value);
       }
     } catch (fetchError: any) {
-      console.error('[VideoPlayer] Error checking stream:', fetchError);
-      
-      // Try to extract status from error
-      if (fetchError.response?.status) {
-        httpStatus = fetchError.response.status;
-      }
+      console.warn('[VideoPlayer] Could not check stream status:', fetchError.message);
+      // Don't set httpStatus if we can't check - some streams don't support HEAD
     }
   }
 
@@ -304,34 +301,23 @@ const loadSource = async (url: string) => {
       const streamUrl = `/api/stream-proxy?url=${encodeURIComponent(url)}`;
       console.log('[VideoPlayer] Loading source:', streamUrl);
 
-      // Check if stream URL is accessible before loading
+      // Optional: Check if stream URL is accessible before loading
+      // Note: This is a soft check - we continue even if it fails
+      // because some streams don't support HEAD requests
       try {
         const checkResponse = await fetch(streamUrl, {
           method: 'HEAD',
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(3000)
         });
         
-        if (!checkResponse.ok) {
-          const httpStatus = checkResponse.status;
-          console.error(`[VideoPlayer] Stream check failed with HTTP ${httpStatus}`);
-          
-          // Show specific error based on status
-          toast.add({
-            title: `Stream Error (${httpStatus})`,
-            description: getErrorMessage(0, httpStatus),
-            color: "red",
-            timeout: 5000,
-          });
-          
-          isLoading.value = false;
-          reject(new Error(`HTTP ${httpStatus}`));
-          return;
+        if (checkResponse.ok) {
+          console.log('[VideoPlayer] Pre-stream check passed');
+        } else {
+          console.warn(`[VideoPlayer] Pre-stream check returned HTTP ${checkResponse.status}, continuing anyway`);
         }
-        
-        console.log('[VideoPlayer] Stream check passed');
       } catch (checkError: any) {
-        console.warn('[VideoPlayer] Stream check failed:', checkError.message);
-        // Continue anyway - some streams don't support HEAD requests
+        console.warn('[VideoPlayer] Pre-stream check failed:', checkError.message, '- continuing anyway');
+        // Continue anyway - many streams don't support HEAD requests or have CORS issues
       }
 
       setLoadingWithTimeout(20000);
