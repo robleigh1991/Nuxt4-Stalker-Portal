@@ -1,14 +1,8 @@
-// server/api/xtream/auth.post.ts
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
-  const { serverUrl, username, password } = body;
-
-  if (!serverUrl || !username || !password) {
-    throw createError({
-      statusCode: 400,
-      message: "Missing required parameters",
-    });
-  }
+  
+  // Validate request body (XtreamAuthSchema and validateBody are auto-imported from server/utils)
+  const { serverUrl, username, password } = validateBody(XtreamAuthSchema, body);
 
   try {
     const url = `${serverUrl}/get.php?username=${encodeURIComponent(

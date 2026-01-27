@@ -33,32 +33,54 @@
       @action="search = ''"
     />
 
-    <!-- Content Grid -->
-    <div
-      v-else
-      class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
-    >
-      <div v-for="item in filteredLiveItems" :key="item?.stream_id || item?.id">
-        <Card
-          :item="item"
-          :selectedItem="selectedItem"
-          :name="item.name"
-          :image="getChannelImage(item)"
-          :contentType="'live'"
-          :providerType="providerType"
-          @click="setSelectedLive(item)"
-        />
+    <!-- Virtual Scrolling Content Grid -->
+    <div v-else ref="scrollContainer" class="h-[calc(100vh-200px)] overflow-auto">
+      <div :style="{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }">
+        <div
+          v-for="virtualRow in virtualizer.getVirtualItems()"
+          :key="virtualRow.index"
+          :data-index="virtualRow.index"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: `${virtualRow.size}px`,
+            transform: `translateY(${virtualRow.start}px)`,
+          }"
+        >
+          <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 px-4">
+            <div
+              v-for="(item, idx) in getRowItems(virtualRow.index)"
+              :key="item?.stream_id || item?.id || idx"
+            >
+              <Card
+                :item="item"
+                :selectedItem="selectedItem"
+                :name="item.name"
+                :image="getChannelImage(item)"
+                :contentType="'live'"
+                :providerType="providerType"
+                @click="setSelectedLive(item)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
+import { useVirtualizer } from '@tanstack/vue-virtual'
+
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
 
 const selectedItem = ref("");
 const search = ref("");
+const scrollContainer = ref<HTMLElement | null>(null);
+
 const isLoading = computed(() => {
   return providerType.value === 'stalker' ? stalker.isLoading : xtream.isLoading;
 });
@@ -103,6 +125,30 @@ const filteredLiveItems = computed(() => {
   );
 });
 
+// Virtual scrolling configuration
+const ITEMS_PER_ROW = 6; // xl:grid-cols-6
+const ROW_HEIGHT = 400; // Approximate height of each card
+
+// Calculate number of rows
+const rowCount = computed(() => {
+  return Math.ceil(filteredLiveItems.value.length / ITEMS_PER_ROW);
+});
+
+// Virtual scrolling setup
+const virtualizer = useVirtualizer({
+  count: rowCount.value,
+  getScrollElement: () => scrollContainer.value,
+  estimateSize: () => ROW_HEIGHT,
+  overscan: 2, // Render 2 extra rows above and below for smooth scrolling
+});
+
+// Get items for a specific row
+function getRowItems(rowIndex: number) {
+  const startIndex = rowIndex * ITEMS_PER_ROW;
+  const endIndex = Math.min(startIndex + ITEMS_PER_ROW, filteredLiveItems.value.length);
+  return filteredLiveItems.value.slice(startIndex, endIndex);
+}
+
 // Get channel image based on provider
 function getChannelImage(item: any): string {
   if (providerType.value === "stalker") {
@@ -117,7 +163,6 @@ function getChannelImage(item: any): string {
 async function setSelectedLive(item: any) {
   selectedItem.value = item;
 
-  console.log(selectedItem.value);
   if (providerType.value === "stalker") {
     stalker.currentChannel = item;
     await stalker.createLink(item.cmd, "itv");
@@ -126,7 +171,6 @@ async function setSelectedLive(item: any) {
     }
   } else if (providerType.value === "xtream") {
     await xtream.playLiveStream(item);
-    // Note: You'll need to add modalOpen to xtream store or handle differently
   }
 }
 
@@ -134,6 +178,29 @@ async function setSelectedLive(item: any) {
 watch(selectedCategory, () => {
   search.value = "";
 });
+
+// Watch for filtered items changes to update virtualizer
+watch(() => filteredLiveItems.value.length, () => {
+  virtualizer.measure();
+});
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Ensure smooth scrolling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+</style>

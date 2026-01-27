@@ -89,6 +89,25 @@
           />
         </div>
 
+        <!-- Remember Me -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <UCheckbox v-model="rememberMe" />
+            <label class="text-sm text-gray-400 cursor-pointer" @click="rememberMe = !rememberMe">
+              Remember me
+            </label>
+          </div>
+          
+          <!-- Pre-filled Indicator -->
+          <div 
+            v-if="credentialsPrefilled"
+            class="flex items-center gap-1 text-xs text-blue-400"
+          >
+            <UIcon name="i-lucide-check-circle" class="w-4 h-4" />
+            <span>Credentials loaded</span>
+          </div>
+        </div>
+
         <!-- Login Button -->
         <UButton
           :leadingIcon="
@@ -123,43 +142,91 @@
 </template>
 
 <script setup lang="ts">
-const stalker = useStalkerStore();
-const xtream = useXtreamStore();
+const auth = useAuth();
 const toast = useToast();
 
 // Provider type selection
 const providerType = ref<"stalker" | "xtream">("stalker");
-const isLoading = ref(false);
 
 // Stalker credentials
-const stalkerPortal = ref("http://delta8k.xyz");
-const stalkerMac = ref("00:1A:79:14:DF:0A");
+const stalkerPortal = ref("");
+const stalkerMac = ref("");
 
 // Xtream credentials
 const xtreaminputUrl = ref("");
-const xtreamUrl = ref("http://yesme.shop:80");
-const xtreamUsername = ref("96511amanda");
-const xtreamPassword = ref("16756643");
+const xtreamUrl = ref("");
+const xtreamUsername = ref("");
+const xtreamPassword = ref("");
+
+// Remember me checkbox
+const rememberMe = ref(false);
+const credentialsPrefilled = ref(false);
+
+// Get loading state from auth composable
+const isLoading = computed(() => auth.isLoading.value);
+
+// Initialize auth on mount
+onMounted(async () => {
+  await auth.init();
+  rememberMe.value = auth.rememberMe.value;
+  
+  // If already authenticated, redirect to dashboard
+  if (auth.isAuthenticated.value) {
+    navigateTo("/dashboard");
+    return;
+  }
+
+  // Load and pre-fill stored credentials (no auto-login)
+  const stored = await auth.loadStoredCredentials();
+  if (stored) {
+    if (stored.providerType === 'stalker') {
+      providerType.value = 'stalker';
+      stalkerPortal.value = stored.credentials.portalUrl || '';
+      stalkerMac.value = stored.credentials.macAddress || '';
+    } else if (stored.providerType === 'xtream') {
+      providerType.value = 'xtream';
+      xtreamUrl.value = stored.credentials.serverUrl || '';
+      xtreamUsername.value = stored.credentials.username || '';
+      xtreamPassword.value = stored.credentials.password || '';
+    }
+    
+    credentialsPrefilled.value = true;
+    console.log('[Auth] Credentials pre-filled from storage');
+    
+    // Show notification
+    toast.add({
+      title: 'Credentials Loaded',
+      description: 'Your saved credentials have been pre-filled. Review and sign in.',
+      color: 'blue',
+      timeout: 4000,
+    });
+  }
+});
 
 async function handleLogin() {
-  isLoading.value = true;
-
   try {
+    let success = false;
+    
     if (providerType.value === "stalker") {
-      await loginStalker();
+      success = await auth.loginStalker(
+        stalkerPortal.value,
+        stalkerMac.value,
+        rememberMe.value
+      );
     } else {
-      await loginXtream();
+      success = await auth.loginXtream(
+        xtreamUrl.value,
+        xtreamUsername.value,
+        xtreamPassword.value,
+        rememberMe.value
+      );
+    }
+
+    if (success) {
+      navigateTo("/dashboard");
     }
   } catch (error: any) {
     console.error("Login error:", error);
-    toast.add({
-      title: "Login Failed",
-      description:
-        error.message || "Please check your credentials and try again",
-      color: "red",
-    });
-  } finally {
-    isLoading.value = false;
   }
 }
 
@@ -227,26 +294,14 @@ async function loginStalker() {
       description: "Please enter both portal URL and MAC address",
       color: "red",
     });
-    return;
+    return false;
   }
 
-  const valid = await stalker.makeHandshake(
+  return await auth.loginStalker(
     stalkerPortal.value,
-    stalkerMac.value
+    stalkerMac.value,
+    rememberMe.value
   );
-
-  if (valid?.success) {
-    toast.add({
-      title: "Credentials Valid!",
-      description: "Loading your content...",
-      color: "green",
-    });
-
-    await stalker.getAllInfo();
-    navigateTo("/dashboard");
-  } else {
-    throw new Error("Invalid Stalker credentials");
-  }
 }
 
 async function loginXtream() {
@@ -256,33 +311,15 @@ async function loginXtream() {
       description: "Please fill in all fields",
       color: "red",
     });
-    return;
+    return false;
   }
 
-  const valid = await xtream.authenticate(
+  return await auth.loginXtream(
     xtreamUrl.value,
     xtreamUsername.value,
-    xtreamPassword.value
+    xtreamPassword.value,
+    rememberMe.value
   );
-
-  if (valid?.success) {
-    toast.add({
-      title: "Credentials Valid!",
-      description: "Loading your content...",
-      color: "green",
-    });
-
-    // Load initial data
-    await Promise.all([
-      xtream.getLiveCategories(),
-      xtream.getVodCategories(),
-      xtream.getSeriesCategories(),
-    ]);
-
-    navigateTo("/dashboard");
-  } else {
-    throw new Error("Invalid Xtream credentials");
-  }
 }
 </script>
 

@@ -1,24 +1,57 @@
 <template>
-  <div class="flex w-full flex-row gap-4">
-    <UInput
-      class="w-full mb-4"
-      size="xl"
-      placeholder="Search for movies"
-      v-model="search"
-    />
-  </div>
-  <div
-    class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
-  >
-    <div v-for="item in filteredMoviesItems" :key="item?.stream_id || item?.id">
-      <Card
-        :item="item"
-        :selectedItem="selectedItem"
-        :name="item.name"
-        :image="getMovieImage(item)"
-        :loading="isLoading && selectedItem?.id === item?.id"
-        @click="setSelectedMovie(item)"
+  <div>
+    <div class="flex w-full flex-row gap-4">
+      <UInput
+        class="w-full mb-4"
+        size="xl"
+        placeholder="Search for movies"
+        v-model="search"
+        icon="i-lucide-search"
+        clearable
       />
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="isCategoryLoading" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+      <CardSkeleton v-for="i in 12" :key="i" />
+    </div>
+
+    <!-- Empty State -->
+    <EmptyState
+      v-else-if="filteredMoviesItems.length === 0 && !search"
+      icon="i-lucide-film"
+      title="No Movies Available"
+      description="No movies are available in this category."
+    />
+
+    <!-- No Search Results -->
+    <EmptyState
+      v-else-if="filteredMoviesItems.length === 0 && search"
+      icon="i-lucide-search-x"
+      title="No Results Found"
+      :description="`No movies found matching '${search}'`"
+      actionLabel="Clear Search"
+      actionIcon="i-lucide-x"
+      @action="search = ''"
+    />
+
+    <!-- Content Grid -->
+    <div
+      v-else
+      class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+    >
+      <div v-for="item in filteredMoviesItems" :key="item?.stream_id || item?.id">
+        <Card
+          :item="item"
+          :selectedItem="selectedItem"
+          :name="item.name"
+          :image="getMovieImage(item)"
+          :loading="isLoading && selectedItem?.id === item?.id"
+          :contentType="'movies'"
+          :providerType="providerType"
+          @click="setSelectedMovie(item)"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -31,6 +64,9 @@ const toast = useToast();
 const selectedItem = ref<any>(null);
 const search = ref("");
 const isLoading = ref(false);
+const isCategoryLoading = computed(() => {
+  return providerType.value === 'stalker' ? stalker.isLoading : xtream.isLoading;
+});
 
 // Abort controller for canceling previous requests
 let abortController: AbortController | null = null;

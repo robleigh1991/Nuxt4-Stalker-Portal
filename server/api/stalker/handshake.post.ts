@@ -1,7 +1,8 @@
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
-
-  const { portalurl, macaddress, endpoint } = body;
+  
+  // Validate request body (StalkerAuthSchema and validateBody are auto-imported from server/utils)
+  const { portalurl, macaddress, endpoint } = validateBody(StalkerAuthSchema, body);
 
   let fullUrl;
   let isStalkerPortal = false;

@@ -160,6 +160,18 @@
         </button>
         <button
           class="flex flex-col items-center gap-1 cursor-pointer"
+          @click="setSelectedTab('favorites')"
+        >
+          <Icon
+            name="lucide:heart"
+            class="w-6 h-6"
+            :class="{ 'text-primary': selectedTab === 'favorites' }"
+            aria-hidden="true"
+          />
+          <span class="text-xs">Favorites</span>
+        </button>
+        <button
+          class="flex flex-col items-center gap-1 cursor-pointer"
           @click="setSelectedTab('account')"
         >
           <Icon
@@ -180,6 +192,42 @@
       <div v-if="selectedTab == 'movies'" @scroll="onScroll"><Movies /></div>
       <div v-if="selectedTab == 'series'">
         <Series />
+      </div>
+      <div v-if="selectedTab == 'favorites'">
+        <div class="space-y-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-3xl font-bold">My Favorites</h2>
+            <UButton
+              v-if="favoritesList.length > 0"
+              icon="i-lucide-trash-2"
+              color="red"
+              variant="outline"
+              @click="handleClearFavorites"
+            >
+              Clear All
+            </UButton>
+          </div>
+
+          <EmptyState
+            v-if="favoritesList.length === 0"
+            icon="i-lucide-heart"
+            title="No Favorites Yet"
+            description="Start adding your favorite channels, movies, and series by clicking the heart icon."
+          />
+
+          <div v-else class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div v-for="fav in favoritesList" :key="fav.id">
+              <Card
+                :item="fav.data"
+                :name="fav.name"
+                :image="fav.image"
+                :contentType="fav.contentType"
+                :providerType="fav.providerType"
+                @click="playFavoriteItem(fav)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
       <div v-if="selectedTab == 'account'">
         <div class="flex flex-col gap-4 max-w-md mx-auto">
@@ -231,13 +279,23 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: 'auth',
+});
+
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
 const toast = useToast();
+const { setupCommonShortcuts } = useCommonShortcuts();
+const favorites = useFavorites();
 
 const selectedTab = ref("live-tv");
 const selectedCategory = ref<any>(null);
 const search = ref("");
+const searchInputRef = ref<HTMLElement | null>(null);
+
+// Favorites
+const favoritesList = computed(() => favorites.all.value);
 
 // Determine which provider is active
 const providerType = computed(() => {
@@ -271,6 +329,26 @@ onMounted(async () => {
   if (!stalker.token && !xtream.isAuthenticated) {
     navigateTo("/");
   }
+
+  // Setup keyboard shortcuts
+  setupCommonShortcuts({
+    onSearch: () => {
+      // Focus search input
+      const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+      if (searchInput) {
+        searchInput.focus();
+      }
+    },
+    onEscape: () => {
+      // Clear search
+      search.value = "";
+      
+      // Close modal if open
+      if (modalOpen.value) {
+        modalOpen.value = false;
+      }
+    },
+  });
 });
 
 // Computed properties for categories (unified)
@@ -381,6 +459,45 @@ function handleLogout() {
   });
 
   navigateTo("/");
+}
+
+function handleClearFavorites() {
+  if (confirm('Are you sure you want to clear all favorites?')) {
+    favorites.clear();
+  }
+}
+
+async function playFavoriteItem(fav: any) {
+  // Switch to the appropriate tab
+  if (fav.contentType === 'live') {
+    selectedTab.value = 'live-tv';
+  } else if (fav.contentType === 'movies') {
+    selectedTab.value = 'movies';
+  } else if (fav.contentType === 'series') {
+    selectedTab.value = 'series';
+  }
+
+  // Wait for next tick to ensure tab is switched
+  await nextTick();
+
+  // Play the item based on provider
+  if (fav.providerType === 'stalker') {
+    if (fav.contentType === 'live') {
+      stalker.currentChannel = fav.data;
+      await stalker.createLink(fav.data.cmd, 'itv');
+      stalker.modalOpen = true;
+    } else if (fav.contentType === 'movies') {
+      stalker.currentMovie = fav.data;
+      await stalker.createLink(fav.data.cmd, 'vod');
+      stalker.modalOpen = true;
+    }
+  } else if (fav.providerType === 'xtream') {
+    if (fav.contentType === 'live') {
+      await xtream.playLiveStream(fav.data);
+    } else if (fav.contentType === 'movies') {
+      await xtream.playVodStream(fav.data);
+    }
+  }
 }
 </script>
 

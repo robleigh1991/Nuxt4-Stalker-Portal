@@ -10,6 +10,7 @@
       body: { padding: 'p-0' },
       footer: { padding: 'p-3' },
     }"
+    @click="$emit('click')"
   >
     <!-- Image Container -->
     <div class="relative aspect-[3/4] overflow-hidden bg-gray-900">
@@ -39,6 +40,21 @@
         class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
       ></div>
 
+      <!-- Favorite Button -->
+      <button
+        v-if="showFavoriteButton"
+        @click.stop="toggleFavorite"
+        class="absolute top-2 right-2 p-2 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-all duration-200 z-20"
+        :class="{ 'opacity-100': isFavorited, 'opacity-0 group-hover:opacity-100': !isFavorited }"
+        :title="isFavorited ? 'Remove from favorites' : 'Add to favorites'"
+      >
+        <UIcon
+          :name="isFavorited ? 'i-lucide-heart' : 'i-lucide-heart'"
+          class="w-5 h-5 transition-colors"
+          :class="isFavorited ? 'text-red-500 fill-red-500' : 'text-white'"
+        />
+      </button>
+
       <!-- Play Icon Overlay -->
       <div
         class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"
@@ -59,7 +75,7 @@
       <!-- Selected Badge -->
       <div
         v-if="selectedItem === item"
-        class="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1"
+        class="absolute top-2 left-2 bg-primary-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1 z-10"
       >
         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path
@@ -107,12 +123,43 @@
 </template>
 
 <script lang="ts" setup>
-const props = defineProps<{
+interface Props {
   item: any;
-  selectedItem: any;
+  selectedItem?: any;
   name: string;
-  image: string;
-}>();
+  image?: string;
+  loading?: boolean;
+  contentType?: 'live' | 'movies' | 'series';
+  providerType?: 'stalker' | 'xtream';
+  showFavoriteButton?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  showFavoriteButton: true,
+});
+
+defineEmits(['click']);
+
+const favorites = useFavorites();
+
+// Generate unique ID for the item
+const itemId = computed(() => {
+  if (props.item?.stream_id) {
+    return `${props.providerType}_${props.contentType}_${props.item.stream_id}`;
+  }
+  if (props.item?.id) {
+    return `${props.providerType}_${props.contentType}_${props.item.id}`;
+  }
+  if (props.item?.series_id) {
+    return `${props.providerType}_${props.contentType}_${props.item.series_id}`;
+  }
+  return `${props.providerType}_${props.contentType}_${props.name}`;
+});
+
+// Check if item is favorited
+const isFavorited = computed(() => {
+  return favorites.isFavorite(itemId.value);
+});
 
 const handleImageError = (event: Event) => {
   const target = event.target as HTMLImageElement;
@@ -120,6 +167,22 @@ const handleImageError = (event: Event) => {
   target.src =
     "https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg";
   target.classList.add("object-contain", "p-8", "opacity-50");
+};
+
+const toggleFavorite = () => {
+  if (!props.contentType || !props.providerType) {
+    console.warn('contentType and providerType are required for favorites');
+    return;
+  }
+
+  favorites.toggle(
+    itemId.value,
+    props.providerType,
+    props.contentType,
+    props.name,
+    props.item,
+    props.image
+  );
 };
 </script>
 

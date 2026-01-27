@@ -14,6 +14,8 @@
         :selectedItem="selectedItem"
         :name="item.name"
         :image="getSeriesImage(item)"
+        :contentType="'series'"
+        :providerType="providerType"
         @click="setSelectedSeries(item)"
       />
     </div>

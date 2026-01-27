@@ -21,6 +21,19 @@ useSeoMeta({
   twitterImage: "https://ui.nuxt.com/assets/templates/nuxt/starter-light.png",
   twitterCard: "summary_large_image",
 });
+
+// Initialize memory monitoring
+const memoryMonitor = useMemoryMonitor();
+const config = useRuntimeConfig();
+
+onMounted(() => {
+  // Start memory monitoring (check every 10 seconds)
+  memoryMonitor.startMonitoring(10000);
+  
+  if (config.public.debugMode) {
+    console.log('[App] Memory monitoring enabled');
+  }
+});
 </script>
 
 <template>

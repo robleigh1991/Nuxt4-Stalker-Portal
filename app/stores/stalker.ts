@@ -24,11 +24,92 @@ export const useStalkerStore = defineStore("stalker", {
     error: null as string | null,
     progress: 0,
     modalOpen: false,
+    // Memory management
+    cacheConfig: {
+      maxItemsPerCategory: 200,        // Max items to keep per category
+      maxCachedCategories: 5,           // Max categories cached at once
+      cacheTimeout: 5 * 60 * 1000,      // 5 minutes
+      lastAccessed: {} as Record<string, number>,
+    },
   }),
 
   actions: {
     async setSelectedCategory(item: any) {
       this.selectedCategory = item;
+      // Clear old cache when switching categories
+      this.clearOldCache();
+    },
+
+    // Memory Management Methods
+    updateLastAccessed(cacheKey: string) {
+      this.cacheConfig.lastAccessed[cacheKey] = Date.now();
+    },
+
+    clearOldCache() {
+      const now = Date.now();
+      const timeout = this.cacheConfig.cacheTimeout;
+      const keysToRemove: string[] = [];
+
+      // Find old cache keys
+      Object.keys(this.cacheConfig.lastAccessed).forEach(key => {
+        if (now - this.cacheConfig.lastAccessed[key] > timeout) {
+          keysToRemove.push(key);
+        }
+      });
+
+      // Remove old caches
+      keysToRemove.forEach(key => {
+        delete this.liveItems[key];
+        delete this.moviesItems[key];
+        delete this.seriesItems[key];
+        delete this.seriesSeasons[key];
+        delete this.seriesEpisodes[key];
+        delete this.cacheConfig.lastAccessed[key];
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`[Memory] Cleared ${keysToRemove.length} old cache entries`);
+      }
+
+      // Enforce max cached categories limit
+      this.enforceMaxCategories();
+    },
+
+    enforceMaxCategories() {
+      const allKeys = Object.keys(this.cacheConfig.lastAccessed);
+      
+      if (allKeys.length <= this.cacheConfig.maxCachedCategories) {
+        return;
+      }
+
+      // Sort by last accessed (oldest first)
+      const sortedKeys = allKeys.sort((a, b) => 
+        this.cacheConfig.lastAccessed[a] - this.cacheConfig.lastAccessed[b]
+      );
+
+      // Remove oldest entries beyond the limit
+      const keysToRemove = sortedKeys.slice(0, allKeys.length - this.cacheConfig.maxCachedCategories);
+      
+      keysToRemove.forEach(key => {
+        delete this.liveItems[key];
+        delete this.moviesItems[key];
+        delete this.seriesItems[key];
+        delete this.seriesSeasons[key];
+        delete this.seriesEpisodes[key];
+        delete this.cacheConfig.lastAccessed[key];
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`[Memory] Enforced category limit, removed ${keysToRemove.length} entries`);
+      }
+    },
+
+    limitItemsArray(items: any[]): any[] {
+      if (items.length > this.cacheConfig.maxItemsPerCategory) {
+        console.log(`[Memory] Limiting ${items.length} items to ${this.cacheConfig.maxItemsPerCategory}`);
+        return items.slice(0, this.cacheConfig.maxItemsPerCategory);
+      }
+      return items;
     },
 
     async makeHandshake(portalurl: string, macaddress: string) {
@@ -104,6 +185,7 @@ export const useStalkerStore = defineStore("stalker", {
 
       // Return cached items if available
       if (this.liveItems[cacheKey]?.length > 0) {
+        this.updateLastAccessed(cacheKey);
         return this.liveItems[cacheKey];
       }
 
@@ -158,6 +240,13 @@ export const useStalkerStore = defineStore("stalker", {
         }
 
         this.progress = 0;
+        
+        // Limit items to prevent memory overflow
+        this.liveItems[cacheKey] = this.limitItemsArray(this.liveItems[cacheKey]);
+        
+        // Update last accessed time
+        this.updateLastAccessed(cacheKey);
+        
         return this.liveItems[cacheKey];
       } catch (err) {
         console.error("Failed to load live items:", err);
@@ -186,6 +275,7 @@ export const useStalkerStore = defineStore("stalker", {
       const cacheKey = `${categoryId}_${page}`;
 
       if (this.moviesItems[cacheKey]?.length > 0) {
+        this.updateLastAccessed(cacheKey);
         return this.moviesItems[cacheKey];
       }
 
@@ -238,6 +328,13 @@ export const useStalkerStore = defineStore("stalker", {
         }
 
         this.progress = 0;
+        
+        // Limit items to prevent memory overflow
+        this.moviesItems[cacheKey] = this.limitItemsArray(this.moviesItems[cacheKey]);
+        
+        // Update last accessed time
+        this.updateLastAccessed(cacheKey);
+        
         return this.moviesItems[cacheKey];
       } catch (err) {
         console.error("Failed to load movie items:", err);
@@ -266,6 +363,7 @@ export const useStalkerStore = defineStore("stalker", {
       const cacheKey = `${categoryId}_${page}`;
 
       if (this.seriesItems[cacheKey]?.length > 0) {
+        this.updateLastAccessed(cacheKey);
         return this.seriesItems[cacheKey];
       }
 
@@ -318,6 +416,13 @@ export const useStalkerStore = defineStore("stalker", {
         }
 
         this.progress = 0;
+        
+        // Limit items to prevent memory overflow
+        this.seriesItems[cacheKey] = this.limitItemsArray(this.seriesItems[cacheKey]);
+        
+        // Update last accessed time
+        this.updateLastAccessed(cacheKey);
+        
         return this.seriesItems[cacheKey];
       } catch (err) {
         console.error("Failed to load series items:", err);
@@ -401,6 +506,25 @@ export const useStalkerStore = defineStore("stalker", {
       this.seriesItems = {};
       this.seriesSeasons = {};
       this.seriesEpisodes = {};
+      this.cacheConfig.lastAccessed = {};
+      console.log('[Memory] Cleared all cache');
+    },
+    
+    getCacheStats() {
+      const liveCount = Object.keys(this.liveItems).length;
+      const moviesCount = Object.keys(this.moviesItems).length;
+      const seriesCount = Object.keys(this.seriesItems).length;
+      const totalItems = Object.values(this.liveItems).flat().length +
+                        Object.values(this.moviesItems).flat().length +
+                        Object.values(this.seriesItems).flat().length;
+      
+      return {
+        cachedCategories: liveCount + moviesCount + seriesCount,
+        totalItems,
+        liveCategories: liveCount,
+        movieCategories: moviesCount,
+        seriesCategories: seriesCount,
+      };
     },
   },
 });

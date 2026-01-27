@@ -31,6 +31,14 @@ export const useXtreamStore = defineStore("xtream", {
     error: null as string | null,
     progress: 0,
     modalOpen: false,
+    
+    // Memory management
+    cacheConfig: {
+      maxItemsPerCategory: 200,        // Max items to keep per category
+      maxCachedCategories: 5,           // Max categories cached at once
+      cacheTimeout: 5 * 60 * 1000,      // 5 minutes
+      lastAccessed: {} as Record<string, number>,
+    },
   }),
 
   getters: {
@@ -58,6 +66,80 @@ export const useXtreamStore = defineStore("xtream", {
   },
 
   actions: {
+    // ==========================================
+    // MEMORY MANAGEMENT
+    // ==========================================
+    updateLastAccessed(cacheKey: string) {
+      this.cacheConfig.lastAccessed[cacheKey] = Date.now();
+    },
+
+    clearOldCache() {
+      const now = Date.now();
+      const timeout = this.cacheConfig.cacheTimeout;
+      const keysToRemove: string[] = [];
+
+      // Find old cache keys
+      Object.keys(this.cacheConfig.lastAccessed).forEach(key => {
+        if (now - this.cacheConfig.lastAccessed[key] > timeout) {
+          keysToRemove.push(key);
+        }
+      });
+
+      // Remove old caches
+      keysToRemove.forEach(key => {
+        delete this.liveStreams[key];
+        delete this.vodStreams[key];
+        delete this.seriesStreams[key];
+        delete this.seriesInfo[key];
+        delete this.seriesEpisodes[key];
+        delete this.cacheConfig.lastAccessed[key];
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`[Memory] Cleared ${keysToRemove.length} old cache entries`);
+      }
+
+      // Enforce max cached categories limit
+      this.enforceMaxCategories();
+    },
+
+    enforceMaxCategories() {
+      const allKeys = Object.keys(this.cacheConfig.lastAccessed);
+      
+      if (allKeys.length <= this.cacheConfig.maxCachedCategories) {
+        return;
+      }
+
+      // Sort by last accessed (oldest first)
+      const sortedKeys = allKeys.sort((a, b) => 
+        this.cacheConfig.lastAccessed[a] - this.cacheConfig.lastAccessed[b]
+      );
+
+      // Remove oldest entries beyond the limit
+      const keysToRemove = sortedKeys.slice(0, allKeys.length - this.cacheConfig.maxCachedCategories);
+      
+      keysToRemove.forEach(key => {
+        delete this.liveStreams[key];
+        delete this.vodStreams[key];
+        delete this.seriesStreams[key];
+        delete this.seriesInfo[key];
+        delete this.seriesEpisodes[key];
+        delete this.cacheConfig.lastAccessed[key];
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`[Memory] Enforced category limit, removed ${keysToRemove.length} entries`);
+      }
+    },
+
+    limitItemsArray(items: any[]): any[] {
+      if (items.length > this.cacheConfig.maxItemsPerCategory) {
+        console.log(`[Memory] Limiting ${items.length} items to ${this.cacheConfig.maxItemsPerCategory}`);
+        return items.slice(0, this.cacheConfig.maxItemsPerCategory);
+      }
+      return items;
+    },
+
     // ==========================================
     // AUTHENTICATION
     // ==========================================
@@ -122,8 +204,12 @@ export const useXtreamStore = defineStore("xtream", {
 
       // Return cached streams if available
       if (this.liveStreams[cacheKey]?.length > 0) {
+        this.updateLastAccessed(cacheKey);
         return this.liveStreams[cacheKey];
       }
+
+      // Clear old cache before loading new
+      this.clearOldCache();
 
       try {
         this.progress = 50;
@@ -138,7 +224,9 @@ export const useXtreamStore = defineStore("xtream", {
           },
         });
 
-        this.liveStreams[cacheKey] = streams || [];
+        // Limit items and store
+        this.liveStreams[cacheKey] = this.limitItemsArray(streams || []);
+        this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
         setTimeout(() => {
@@ -179,8 +267,12 @@ export const useXtreamStore = defineStore("xtream", {
       const cacheKey = `cat_${categoryId}`;
 
       if (this.vodStreams[cacheKey]?.length > 0) {
+        this.updateLastAccessed(cacheKey);
         return this.vodStreams[cacheKey];
       }
+
+      // Clear old cache before loading new
+      this.clearOldCache();
 
       try {
         this.progress = 50;
@@ -195,7 +287,9 @@ export const useXtreamStore = defineStore("xtream", {
           },
         });
 
-        this.vodStreams[cacheKey] = streams || [];
+        // Limit items and store
+        this.vodStreams[cacheKey] = this.limitItemsArray(streams || []);
+        this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
         setTimeout(() => {
@@ -255,8 +349,12 @@ export const useXtreamStore = defineStore("xtream", {
       const cacheKey = `cat_${categoryId}`;
 
       if (this.seriesStreams[cacheKey]?.length > 0) {
+        this.updateLastAccessed(cacheKey);
         return this.seriesStreams[cacheKey];
       }
+
+      // Clear old cache before loading new
+      this.clearOldCache();
 
       try {
         this.progress = 50;
@@ -271,7 +369,9 @@ export const useXtreamStore = defineStore("xtream", {
           },
         });
 
-        this.seriesStreams[cacheKey] = streams || [];
+        // Limit items and store
+        this.seriesStreams[cacheKey] = this.limitItemsArray(streams || []);
+        this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
         setTimeout(() => {
@@ -343,6 +443,25 @@ export const useXtreamStore = defineStore("xtream", {
       this.seriesStreams = {};
       this.seriesInfo = {};
       this.seriesEpisodes = {};
+      this.cacheConfig.lastAccessed = {};
+      console.log('[Memory] Cleared all cache');
+    },
+    
+    getCacheStats() {
+      const liveCount = Object.keys(this.liveStreams).length;
+      const vodCount = Object.keys(this.vodStreams).length;
+      const seriesCount = Object.keys(this.seriesStreams).length;
+      const totalItems = Object.values(this.liveStreams).flat().length +
+                        Object.values(this.vodStreams).flat().length +
+                        Object.values(this.seriesStreams).flat().length;
+      
+      return {
+        cachedCategories: liveCount + vodCount + seriesCount,
+        totalItems,
+        liveCategories: liveCount,
+        vodCategories: vodCount,
+        seriesCategories: seriesCount,
+      };
     },
 
     logout() {

@@ -130,7 +130,32 @@ const options = {
   },
 };
 
-const getErrorMessage = (code: number): string => {
+const getErrorMessage = (code: number, httpStatus?: number): string => {
+  // HTTP Error Messages
+  if (httpStatus) {
+    const httpErrors: Record<number, string> = {
+      400: "Bad Request - Invalid stream URL or parameters",
+      401: "Unauthorized - Authentication required or expired",
+      403: "Forbidden - Access denied to this stream",
+      404: "Not Found - Stream no longer available",
+      408: "Request Timeout - Server took too long to respond",
+      429: "Too Many Requests - Please wait before retrying",
+      459: "Stream Offline - This channel is currently unavailable",
+      500: "Internal Server Error - Provider issue, try again later",
+      502: "Bad Gateway - Server is temporarily unavailable",
+      503: "Service Unavailable - Server is overloaded or down",
+      504: "Gateway Timeout - Upstream server not responding",
+    };
+    
+    if (httpErrors[httpStatus]) {
+      return `${httpErrors[httpStatus]} (HTTP ${httpStatus})`;
+    }
+    
+    // Generic HTTP error
+    return `Server Error: HTTP ${httpStatus}`;
+  }
+  
+  // Media Error Messages
   const errorMessages: Record<number, string> = {
     1: "Video loading was aborted.",
     2: "Network error occurred. Check your connection.",
@@ -140,24 +165,67 @@ const getErrorMessage = (code: number): string => {
   return errorMessages[code] || "An unknown error occurred.";
 };
 
-const handleError = (event: any) => {
+const handleError = async (event: any) => {
   if (!isComponentMounted.value) return;
 
-  const errorCode = videoElement.value?.error?.code || event.detail?.plyr?.code;
+  console.log('[VideoPlayer] Error event:', event);
+  
+  let errorCode = videoElement.value?.error?.code || event.detail?.plyr?.code;
+  let httpStatus: number | undefined;
+  let errorMessage = '';
 
-  if (errorCode) {
-    console.error(`Playback error code ${errorCode}`);
-    
-    toast.add({
-      title: "Playback Error",
-      description: getErrorMessage(errorCode),
-      color: "red",
-      timeout: 5000,
-    });
-    
-    isLoading.value = false;
-    clearLoadingTimeout();
+  // Try to detect HTTP errors from the stream URL
+  if (sourceUrl.value) {
+    try {
+      // Attempt to fetch the stream URL to get HTTP status
+      const response = await fetch(proxyUrl.value, { 
+        method: 'HEAD',
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!response.ok) {
+        httpStatus = response.status;
+        console.error(`[VideoPlayer] HTTP Error ${httpStatus} for URL:`, proxyUrl.value);
+      }
+    } catch (fetchError: any) {
+      console.error('[VideoPlayer] Error checking stream:', fetchError);
+      
+      // Try to extract status from error
+      if (fetchError.response?.status) {
+        httpStatus = fetchError.response.status;
+      }
+    }
   }
+
+  // Get appropriate error message
+  errorMessage = getErrorMessage(errorCode || 0, httpStatus);
+  
+  console.error(`[VideoPlayer] Playback error:`, {
+    errorCode,
+    httpStatus,
+    message: errorMessage,
+    url: proxyUrl.value
+  });
+  
+  // Show user-friendly error with retry option for temporary errors
+  const isRetryableError = httpStatus && [429, 500, 502, 503, 504].includes(httpStatus);
+  
+  toast.add({
+    title: httpStatus ? `Stream Error (${httpStatus})` : "Playback Error",
+    description: errorMessage,
+    color: "red",
+    timeout: isRetryableError ? 8000 : 5000,
+    actions: isRetryableError ? [{
+      label: 'Retry',
+      click: () => {
+        console.log('[VideoPlayer] User initiated retry');
+        retryPlayback();
+      }
+    }] : undefined,
+  });
+  
+  isLoading.value = false;
+  clearLoadingTimeout();
 };
 
 const clearLoadingTimeout = () => {
@@ -233,6 +301,39 @@ const loadSource = async (url: string) => {
         return;
       }
 
+      const streamUrl = `/api/stream-proxy?url=${encodeURIComponent(url)}`;
+      console.log('[VideoPlayer] Loading source:', streamUrl);
+
+      // Check if stream URL is accessible before loading
+      try {
+        const checkResponse = await fetch(streamUrl, {
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000)
+        });
+        
+        if (!checkResponse.ok) {
+          const httpStatus = checkResponse.status;
+          console.error(`[VideoPlayer] Stream check failed with HTTP ${httpStatus}`);
+          
+          // Show specific error based on status
+          toast.add({
+            title: `Stream Error (${httpStatus})`,
+            description: getErrorMessage(0, httpStatus),
+            color: "red",
+            timeout: 5000,
+          });
+          
+          isLoading.value = false;
+          reject(new Error(`HTTP ${httpStatus}`));
+          return;
+        }
+        
+        console.log('[VideoPlayer] Stream check passed');
+      } catch (checkError: any) {
+        console.warn('[VideoPlayer] Stream check failed:', checkError.message);
+        // Continue anyway - some streams don't support HEAD requests
+      }
+
       setLoadingWithTimeout(20000);
 
       const wasPlaying = !player.paused;
@@ -247,7 +348,7 @@ const loadSource = async (url: string) => {
 
       // Set new source
       const newSource = document.createElement("source");
-      newSource.src = `/api/stream-proxy?url=${encodeURIComponent(url)}`
+      newSource.src = streamUrl;
       newSource.type = "application/x-mpegURL";
       videoElement.value?.appendChild(newSource);
 
@@ -255,7 +356,7 @@ const loadSource = async (url: string) => {
         type: "video",
         sources: [
           {
-            src: `/api/stream-proxy?url=${encodeURIComponent(url)}`,
+            src: streamUrl,
             type: "application/x-mpegURL",
           },
         ],
@@ -358,7 +459,7 @@ onMounted(async () => {
 
       player.on("ready", () => {
         if (!isComponentMounted.value) return;
-        console.log("Plyr player ready");
+        console.log("[VideoPlayer] Plyr player ready");
         clearLoadingTimeout();
         isLoading.value = false;
       });
@@ -401,7 +502,19 @@ onMounted(async () => {
 
       videoElement.value.addEventListener("error", handleError);
       
-      console.log("Plyr initialized");
+      // Add additional error listener for network issues
+      videoElement.value.addEventListener("stalled", () => {
+        if (!isComponentMounted.value) return;
+        console.warn("[VideoPlayer] Stream stalled - network issue");
+        toast.add({
+          title: "Buffering Issue",
+          description: "Stream is experiencing network issues. Trying to recover...",
+          color: "orange",
+          timeout: 3000,
+        });
+      });
+      
+      console.log("[VideoPlayer] Plyr initialized");
     } catch (error) {
       if (!isComponentMounted.value) return;
       console.error("Failed to load Plyr:", error);
@@ -428,46 +541,119 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  console.log('[VideoPlayer] Cleaning up component...');
   isComponentMounted.value = false;
 
+  // Stop watcher first
   if (stopWatcher) {
     stopWatcher();
     stopWatcher = null;
   }
 
+  // Clear any pending timeouts
   clearLoadingTimeout();
 
+  // Comprehensive Plyr cleanup
   if (player) {
     try {
+      console.log('[VideoPlayer] Destroying Plyr instance');
+      
+      // Remove all Plyr event listeners
+      player.off('error');
+      player.off('ready');
+      player.off('loadstart');
+      player.off('loadeddata');
+      player.off('playing');
+      player.off('waiting');
+      player.off('canplay');
+      player.off('pause');
+      player.off('ended');
+      player.off('timeupdate');
+      player.off('volumechange');
+      player.off('seeked');
+      player.off('seeking');
+      
+      // Stop playback
+      if (!player.paused) {
+        player.pause();
+      }
+      
+      // Destroy Plyr instance
       player.destroy();
+      player = null;
+      
+      console.log('[VideoPlayer] Plyr destroyed successfully');
     } catch (err) {
-      console.error("Error destroying player:", err);
+      console.error('[VideoPlayer] Error destroying player:', err);
     }
-    player = null;
   }
 
+  // Comprehensive video element cleanup
   if (videoElement.value) {
     try {
-      videoElement.value.removeEventListener("error", handleError);
-      const sources = videoElement.value.querySelectorAll("source");
-      sources.forEach((src) => src.remove());
-      videoElement.value.removeAttribute("src");
-      videoElement.value.load();
+      console.log('[VideoPlayer] Cleaning video element');
+      
+      // Pause and clear current time
       videoElement.value.pause();
+      videoElement.value.currentTime = 0;
+      
+      // Remove all event listeners
+      videoElement.value.removeEventListener("error", handleError);
+      videoElement.value.removeEventListener("loadstart", () => {});
+      videoElement.value.removeEventListener("canplay", () => {});
+      videoElement.value.removeEventListener("error", () => {});
+      
+      // Remove all sources
+      const sources = videoElement.value.querySelectorAll("source");
+      sources.forEach((src) => {
+        src.removeAttribute('src');
+        src.remove();
+      });
+      
+      // Clear src attribute
+      videoElement.value.removeAttribute("src");
+      videoElement.value.srcObject = null;
+      
+      // Force garbage collection of media buffers
+      videoElement.value.load();
+      
+      // Additional cleanup for memory
+      videoElement.value.poster = '';
+      videoElement.value.preload = 'none';
+      
+      console.log('[VideoPlayer] Video element cleaned');
     } catch (err) {
-      console.error("Error cleaning up video element:", err);
+      console.error('[VideoPlayer] Error cleaning up video element:', err);
     }
   }
 
-  if (providerType.value === "stalker") {
-    stalker.currentChannel = null;
-    stalker.currentMovie = null;
-    stalker.currentSeries = null;
-    stalker.sourceUrl = null;
-  } else if (providerType.value === "xtream") {
-    xtream.currentStream = null;
-    xtream.sourceUrl = null;
+  // Clear store references
+  try {
+    if (providerType.value === "stalker") {
+      stalker.currentChannel = null;
+      stalker.currentMovie = null;
+      stalker.currentSeries = null;
+      stalker.sourceUrl = null;
+    } else if (providerType.value === "xtream") {
+      xtream.currentStream = null;
+      xtream.sourceUrl = null;
+    }
+    console.log('[VideoPlayer] Store references cleared');
+  } catch (err) {
+    console.error('[VideoPlayer] Error clearing store references:', err);
   }
+
+  // Force garbage collection hint (if available)
+  if (typeof window !== 'undefined' && (window as any).gc) {
+    try {
+      (window as any).gc();
+      console.log('[VideoPlayer] Garbage collection triggered');
+    } catch (e) {
+      // GC not available, that's okay
+    }
+  }
+  
+  console.log('[VideoPlayer] Cleanup complete');
 });
 </script>
 
