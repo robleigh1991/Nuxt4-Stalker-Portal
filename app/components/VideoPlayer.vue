@@ -181,7 +181,7 @@ const handleError = async (event: any) => {
       // Attempt to fetch the stream URL to get HTTP status
       const response = await fetch(proxyUrl.value, { 
         method: 'HEAD',
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(8000) // Increased to 8 seconds
       });
       
       if (!response.ok) {
@@ -232,7 +232,7 @@ const clearLoadingTimeout = () => {
   }
 };
 
-const setLoadingWithTimeout = (duration: number = 15000) => {
+const setLoadingWithTimeout = (duration: number = 45000) => {
   if (!isComponentMounted.value) return;
 
   clearLoadingTimeout();
@@ -248,8 +248,8 @@ const setLoadingWithTimeout = (duration: number = 15000) => {
       if (player && player.paused) {
         toast.add({
           title: "Loading Timeout",
-          description: "Stream loading timeout. The stream may be unavailable.",
-          color: "red",
+          description: "Stream is taking longer than expected. Please try again.",
+          color: "orange",
           timeout: 5000,
         });
       }
@@ -271,7 +271,7 @@ const retryPlayback = async () => {
   }
 
   retryCount++;
-  setLoadingWithTimeout(20000);
+  setLoadingWithTimeout(60000); // 60 seconds for retry - give it more time
 
   try {
     if (player && videoElement.value && isComponentMounted.value) {
@@ -307,7 +307,7 @@ const loadSource = async (url: string) => {
       try {
         const checkResponse = await fetch(streamUrl, {
           method: 'HEAD',
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(8000) // Increased to 8 seconds
         });
         
         if (checkResponse.ok) {
@@ -320,7 +320,7 @@ const loadSource = async (url: string) => {
         // Continue anyway - many streams don't support HEAD requests or have CORS issues
       }
 
-      setLoadingWithTimeout(20000);
+      setLoadingWithTimeout(60000); // 60 seconds - IPTV streams need time to buffer
 
       const wasPlaying = !player.paused;
       if (wasPlaying) {
@@ -353,9 +353,9 @@ const loadSource = async (url: string) => {
         return;
       }
 
-      // Wait for canplay event
+      // Wait for canplay event with extended timeout for IPTV streams
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Loading timeout")), 10000)
+        setTimeout(() => reject(new Error("Loading timeout")), 45000) // 45 seconds
       );
 
       const canPlayPromise = new Promise<void>((resolve) => {
@@ -452,7 +452,7 @@ onMounted(async () => {
 
       player.on("loadstart", () => {
         if (!isComponentMounted.value) return;
-        setLoadingWithTimeout(20000);
+        setLoadingWithTimeout(60000); // 60 seconds for IPTV streams
       });
 
       player.on("loadeddata", () => {
@@ -517,7 +517,7 @@ onMounted(async () => {
   stopWatcher = watch(sourceUrl, async (newUrl, oldUrl) => {
     if (!isComponentMounted.value || newUrl === oldUrl || !newUrl) return;
 
-    setLoadingWithTimeout(20000);
+    setLoadingWithTimeout(60000); // 60 seconds for IPTV streams
     retryCount = 0;
 
     if (player && videoElement.value) {
