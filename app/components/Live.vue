@@ -1,17 +1,23 @@
 <template>
   <div>
-    <UInput
-      class="w-full mb-4"
-      size="xl"
-      placeholder="Search for live channels"
-      v-model="search"
-      icon="i-lucide-search"
-      clearable
-    />
+    <div class="mb-8">
+      <UInput 
+        v-model="search"
+        icon="i-lucide-search"
+        size="xl"
+        placeholder="Search channels..."
+        block
+        variant="subtle"
+        :ui="{ 
+          base: 'bg-[#141414] border-transparent focus:border-red-600',
+          leadingIcon: 'text-gray-500'
+        }"
+      />
+    </div>
 
     <!-- Loading State -->
     <div v-if="isLoading" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-      <CardSkeleton v-for="i in 12" :key="i" />
+      <SkeletonsCardSkeleton v-for="i in 12" :key="i" />
     </div>
 
     <!-- Empty State -->
@@ -106,7 +112,7 @@ const filteredLiveItems = computed(() => {
 // Get channel image based on provider
 function getChannelImage(item: any): string {
   if (providerType.value === "stalker") {
-    return item.logo ? `https://proxy.duckduckgo.com/iu/?u=${item.logo}` : "";
+    return item.logo || "";
   } else if (providerType.value === "xtream") {
     return item.stream_icon || "";
   }

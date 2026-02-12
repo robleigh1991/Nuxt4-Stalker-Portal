@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="currentSeries"
-    class="series-sidebar w-96 bg-gray-800/95 dark:bg-gray-900/95 border-l border-gray-700 flex flex-col overflow-hidden"
+    class="series-sidebar w-full h-full bg-[#141414] flex flex-col overflow-hidden"
   >
     <!-- Series Header with Background -->
     <div
@@ -237,7 +237,6 @@ const {
 
 <style scoped>
 .series-sidebar {
-  backdrop-filter: blur(10px);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
 }
 

@@ -1,143 +1,110 @@
 <template>
-  <div
-    class="flex flex-row h-screen justify-center items-center bg-gradient-to-br from-gray-900 via-gray-800 to-black"
-  >
-    <UContainer>
-      <div
-        class="flex flex-col m-auto max-w-xl gap-6 p-8 bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-gray-700 shadow-2xl"
-      >
-        <h1
-          class="text-3xl text-center font-bold text-red-500 text-shadow-black text-shadow-2xs mb-4"
+  <div class="fixed inset-0 flex items-center justify-center bg-black overflow-hidden">
+    <!-- Background Image -->
+    <div class="absolute inset-0 z-0 opacity-50">
+      <NuxtImg 
+        src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=2069&auto=format&fit=crop"
+        class="w-full h-full object-cover"
+      />
+      <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black"></div>
+    </div>
+
+    <!-- Login Card -->
+    <div class="relative z-10 w-full max-w-[450px] p-8 md:p-16 bg-black/80 rounded-md border border-white/10 shadow-2xl backdrop-blur-sm">
+      <div class="mb-10 text-center">
+        <h1 class="text-4xl font-extrabold text-red-600 tracking-tighter uppercase">Streamflix</h1>
+      </div>
+
+      <h2 class="text-3xl font-bold text-white mb-8">Sign In</h2>
+
+      <!-- Provider Selector Tabs -->
+      <div class="flex border-b border-gray-700 mb-8">
+        <button 
+          @click="providerType = 'stalker'"
+          class="flex-1 py-4 text-sm font-bold uppercase transition-colors"
+          :class="providerType === 'stalker' ? 'text-white border-b-2 border-red-600' : 'text-gray-500 hover:text-gray-300'"
         >
-          STREAMFLIX LOGIN
-        </h1>
+          Stalker
+        </button>
+        <button 
+          @click="providerType = 'xtream'"
+          class="flex-1 py-4 text-sm font-bold uppercase transition-colors"
+          :class="providerType === 'xtream' ? 'text-white border-b-2 border-red-600' : 'text-gray-500 hover:text-gray-300'"
+        >
+          Xtream
+        </button>
+      </div>
 
-        <!-- Provider Type Selector -->
-        <div class="flex gap-2 p-1 bg-gray-800 rounded-lg">
-          <button
-            @click="providerType = 'stalker'"
-            :class="[
-              'flex-1 py-3 px-4 rounded-md font-semibold transition-all duration-200',
-              providerType === 'stalker'
-                ? 'bg-red-600 text-white shadow-lg'
-                : 'bg-transparent text-gray-400 hover:text-white',
-            ]"
-          >
-            <span class="flex items-center justify-center gap-2">
-              <UIcon name="i-lucide-tv" class="w-5 h-5" />
-              Stalker Portal
-            </span>
-          </button>
-          <button
-            @click="providerType = 'xtream'"
-            :class="[
-              'flex-1 py-3 px-4 rounded-md font-semibold transition-all duration-200',
-              providerType === 'xtream'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-transparent text-gray-400 hover:text-white',
-            ]"
-          >
-            <span class="flex items-center justify-center gap-2">
-              <UIcon name="i-lucide-play-circle" class="w-5 h-5" />
-              Xtream Codes
-            </span>
-          </button>
+      <div class="space-y-6">
+        <!-- Stalker Fields -->
+        <div v-if="providerType === 'stalker'" class="space-y-4">
+          <div class="group">
+            <input 
+              v-model="stalkerPortal"
+              type="text"
+              placeholder="Portal URL"
+              class="w-full h-14 px-5 bg-[#333] text-white rounded focus:bg-[#454545] focus:outline-none border-b-2 border-transparent focus:border-[#e87c03] transition-all placeholder-gray-500"
+            />
+          </div>
+          <div class="group">
+            <input 
+              v-model="stalkerMac"
+              type="text"
+              placeholder="MAC Address"
+              class="w-full h-14 px-5 bg-[#333] text-white rounded focus:bg-[#454545] focus:outline-none border-b-2 border-transparent focus:border-[#e87c03] transition-all placeholder-gray-500"
+            />
+          </div>
         </div>
 
-        <!-- Stalker Portal Form -->
-        <div v-if="providerType === 'stalker'" class="flex flex-col gap-4">
-          <UInput
-            size="xl"
-            placeholder="Portal URL (e.g., http://server.com/c)"
-            v-model="stalkerPortal"
-            icon="i-lucide-link"
-          />
-          <UInput
-            size="xl"
-            placeholder="MAC Address (e.g., 00:1A:79:14:DF:0A)"
-            v-model="stalkerMac"
-            icon="i-lucide-network"
-          />
-        </div>
-
-        <!-- Xtream Codes Form -->
-        <div v-if="providerType === 'xtream'" class="flex flex-col gap-4">
-          <UInput
-            size="xl"
-            placeholder="Enter M3U url"
-            v-model="xtreaminputUrl"
-            icon="i-lucide-server"
-          />
-          <UInput
-            size="xl"
-            placeholder="Server URL (e.g., http://server.com:8080)"
+        <!-- Xtream Fields -->
+        <div v-else class="space-y-4">
+          <input 
             v-model="xtreamUrl"
-            icon="i-lucide-server"
+            type="text"
+            placeholder="Server URL"
+            class="w-full h-14 px-5 bg-[#333] text-white rounded focus:bg-[#454545] focus:outline-none border-b-2 border-transparent focus:border-[#e87c03] transition-all placeholder-gray-500"
           />
-          <UInput
-            size="xl"
-            placeholder="Username"
+          <input 
             v-model="xtreamUsername"
-            icon="i-lucide-user"
+            type="text"
+            placeholder="Username"
+            class="w-full h-14 px-5 bg-[#333] text-white rounded focus:bg-[#454545] focus:outline-none border-b-2 border-transparent focus:border-[#e87c03] transition-all placeholder-gray-500"
           />
-          <UInput
-            size="xl"
-            placeholder="Password"
+          <input 
             v-model="xtreamPassword"
             type="password"
-            icon="i-lucide-lock"
+            placeholder="Password"
+            class="w-full h-14 px-5 bg-[#333] text-white rounded focus:bg-[#454545] focus:outline-none border-b-2 border-transparent focus:border-[#e87c03] transition-all placeholder-gray-500"
           />
         </div>
 
-        <!-- Remember Me -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <UCheckbox v-model="rememberMe" />
-            <label class="text-sm text-gray-400 cursor-pointer" @click="rememberMe = !rememberMe">
-              Remember me
-            </label>
-          </div>
-          
-          <!-- Pre-filled Indicator -->
-          <div 
-            v-if="credentialsPrefilled"
-            class="flex items-center gap-1 text-xs text-blue-400"
-          >
-            <UIcon name="i-lucide-check-circle" class="w-4 h-4" />
-            <span>Credentials loaded</span>
+            <input 
+              type="checkbox" 
+              v-model="rememberMe" 
+              class="w-4 h-4 rounded bg-[#333] border-none text-red-600 focus:ring-0"
+            />
+            <span class="text-sm text-gray-400">Remember Me</span>
           </div>
         </div>
 
-        <!-- Login Button -->
-        <UButton
-          :leadingIcon="
-            providerType === 'stalker' ? 'i-lucide-tv' : 'i-lucide-play-circle'
-          "
-          size="xl"
-          :color="providerType === 'stalker' ? 'red' : 'blue'"
-          variant="solid"
-          :loading="isLoading"
+        <button 
           @click="handleLogin"
-          class="mt-2"
+          :disabled="isLoading"
+          class="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          {{
-            isLoading
-              ? "Connecting..."
-              : `Sign in with ${
-                  providerType === "stalker" ? "Stalker" : "Xtream"
-                }`
-          }}
-        </UButton>
+          <UIcon v-if="isLoading" name="i-lucide-loader-2" class="animate-spin" />
+          {{ isLoading ? 'Connecting...' : 'Sign In' }}
+        </button>
 
-        <!-- Provider Info -->
-        <div class="text-center text-sm text-gray-400 mt-2">
-          <p v-if="providerType === 'stalker'">
-            Connect using your Stalker Portal credentials
+        <div class="pt-4 text-center">
+          <p v-if="credentialsPrefilled" class="text-green-500 text-sm flex items-center justify-center gap-2">
+            <UIcon name="i-lucide-check-circle" /> Saved credentials loaded
           </p>
-          <p v-else>Connect using your Xtream Codes credentials</p>
         </div>
       </div>
-    </UContainer>
+    </div>
   </div>
 </template>
 
@@ -282,7 +249,7 @@ watch(xtreaminputUrl, (val) => {
     toast.add({
       title: "Xtream URL detected",
       description: "Username and password extracted automatically",
-      color: "green",
+      color: "success",
     });
   }
 });
@@ -292,7 +259,7 @@ async function loginStalker() {
     toast.add({
       title: "Missing Information",
       description: "Please enter both portal URL and MAC address",
-      color: "red",
+      color: "error",
     });
     return false;
   }
@@ -309,7 +276,7 @@ async function loginXtream() {
     toast.add({
       title: "Missing Information",
       description: "Please fill in all fields",
-      color: "red",
+      color: "error",
     });
     return false;
   }

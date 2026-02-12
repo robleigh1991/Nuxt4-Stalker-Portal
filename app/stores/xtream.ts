@@ -20,6 +20,7 @@ export const useXtreamStore = defineStore("xtream", {
     seriesStreams: {} as Record<string, any[]>,
     seriesInfo: {} as Record<string, any>,
     seriesEpisodes: {} as Record<string, any[]>,
+    epgData: {} as Record<string, any[]>,
 
     // Current selections
     selectedCategory: null as any | null,
@@ -31,7 +32,7 @@ export const useXtreamStore = defineStore("xtream", {
     error: null as string | null,
     progress: 0,
     modalOpen: false,
-    
+
     // Memory management
     cacheConfig: {
       maxItemsPerCategory: 200,        // Max items to keep per category
@@ -48,21 +49,21 @@ export const useXtreamStore = defineStore("xtream", {
 
     streamUrl:
       (state) =>
-      (
-        streamId: number,
-        type: "live" | "movie" | "series",
-        extension = "m3u8"
-      ) => {
-        if (!state.serverUrl || !state.username || !state.password) return null;
+        (
+          streamId: number,
+          type: "live" | "movie" | "series",
+          extension = "m3u8"
+        ) => {
+          if (!state.serverUrl || !state.username || !state.password) return null;
 
-        const typeMap = {
-          live: "live",
-          movie: "movie",
-          series: "series",
-        };
+          const typeMap = {
+            live: "live",
+            movie: "movie",
+            series: "series",
+          };
 
-        return `${state.serverUrl}/${typeMap[type]}/${state.username}/${state.password}/${streamId}.${extension}`;
-      },
+          return `${state.serverUrl}/${typeMap[type]}/${state.username}/${state.password}/${streamId}.${extension}`;
+        },
   },
 
   actions: {
@@ -80,7 +81,8 @@ export const useXtreamStore = defineStore("xtream", {
 
       // Find old cache keys
       Object.keys(this.cacheConfig.lastAccessed).forEach(key => {
-        if (now - this.cacheConfig.lastAccessed[key] > timeout) {
+        const lastAccessed = this.cacheConfig.lastAccessed[key];
+        if (lastAccessed && now - lastAccessed > timeout) {
           keysToRemove.push(key);
         }
       });
@@ -105,19 +107,21 @@ export const useXtreamStore = defineStore("xtream", {
 
     enforceMaxCategories() {
       const allKeys = Object.keys(this.cacheConfig.lastAccessed);
-      
+
       if (allKeys.length <= this.cacheConfig.maxCachedCategories) {
         return;
       }
 
       // Sort by last accessed (oldest first)
-      const sortedKeys = allKeys.sort((a, b) => 
-        this.cacheConfig.lastAccessed[a] - this.cacheConfig.lastAccessed[b]
-      );
+      const sortedKeys = allKeys.sort((a, b) => {
+        const accessA = this.cacheConfig.lastAccessed[a] || 0;
+        const accessB = this.cacheConfig.lastAccessed[b] || 0;
+        return accessA - accessB;
+      });
 
       // Remove oldest entries beyond the limit
       const keysToRemove = sortedKeys.slice(0, allKeys.length - this.cacheConfig.maxCachedCategories);
-      
+
       keysToRemove.forEach(key => {
         delete this.liveStreams[key];
         delete this.vodStreams[key];
@@ -164,8 +168,8 @@ export const useXtreamStore = defineStore("xtream", {
         this.serverUrl = cleanUrl;
         this.username = username.trim();
         this.password = password.trim();
-        this.userInfo = response.user_info;
-        this.serverInfo = response.server_info;
+        this.userInfo = (response as any).user_info;
+        this.serverInfo = (response as any).server_info;
 
         return { success: true };
       } catch (err: any) {
@@ -225,7 +229,7 @@ export const useXtreamStore = defineStore("xtream", {
         });
 
         // Limit items and store
-        this.liveStreams[cacheKey] = this.limitItemsArray(streams || []);
+        this.liveStreams[cacheKey] = this.limitItemsArray((streams as any) || []);
         this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
@@ -288,7 +292,7 @@ export const useXtreamStore = defineStore("xtream", {
         });
 
         // Limit items and store
-        this.vodStreams[cacheKey] = this.limitItemsArray(streams || []);
+        this.vodStreams[cacheKey] = this.limitItemsArray((streams as any) || []);
         this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
@@ -370,7 +374,7 @@ export const useXtreamStore = defineStore("xtream", {
         });
 
         // Limit items and store
-        this.seriesStreams[cacheKey] = this.limitItemsArray(streams || []);
+        this.seriesStreams[cacheKey] = this.limitItemsArray((streams as any) || []);
         this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
@@ -412,6 +416,31 @@ export const useXtreamStore = defineStore("xtream", {
       }
     },
 
+    async getEPG(streamId: number) {
+      if (this.epgData[streamId]) {
+        return this.epgData[streamId];
+      }
+
+      try {
+        const data = await $fetch("/api/xtream/epg", {
+          method: "POST",
+          body: {
+            serverUrl: this.serverUrl,
+            username: this.username,
+            password: this.password,
+            streamId: streamId,
+          },
+        });
+
+        // Xtream short_epg returns { epg_listings: [...] }
+        this.epgData[streamId] = (data as any).epg_listings || [];
+        return this.epgData[streamId];
+      } catch (err) {
+        console.error("Failed to load Xtream EPG:", err);
+        return [];
+      }
+    },
+
     // ==========================================
     // PLAYBACK
     // ==========================================
@@ -446,15 +475,15 @@ export const useXtreamStore = defineStore("xtream", {
       this.cacheConfig.lastAccessed = {};
       console.log('[Memory] Cleared all cache');
     },
-    
+
     getCacheStats() {
       const liveCount = Object.keys(this.liveStreams).length;
       const vodCount = Object.keys(this.vodStreams).length;
       const seriesCount = Object.keys(this.seriesStreams).length;
       const totalItems = Object.values(this.liveStreams).flat().length +
-                        Object.values(this.vodStreams).flat().length +
-                        Object.values(this.seriesStreams).flat().length;
-      
+        Object.values(this.vodStreams).flat().length +
+        Object.values(this.seriesStreams).flat().length;
+
       return {
         cachedCategories: liveCount + vodCount + seriesCount,
         totalItems,

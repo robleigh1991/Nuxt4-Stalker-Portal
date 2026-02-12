@@ -1,280 +1,137 @@
 <template>
-  <div class="flex flex-row h-screen">
-    <div
-      class="sidebar gap-4 border-r border-gray-500 border-solid w-[20%] flex flex-col h-full"
-    >
-      <div
-        class="sidebar-header mt-3 flex items-center align-middle justify-center"
-      >
-        <h1
-          class="text-2xl text-center font-bold text-white-800 text-shadow-black text-shadow-2xs"
-        >
-          STREAMFLIX
-        </h1>
-      </div>
-      <div class="sidecats h-full overflow-auto">
-        <div class="search-container w-full px-2 pt-2">
+  <div class="dashboard-wrapper min-h-screen bg-black overflow-hidden relative">
+    <div class="flex flex-row h-screen text-white">
+      <!-- Sidebar -->
+      <div class="sidebar w-[250px] flex flex-col h-full bg-[#141414] border-r border-white/10">
+        <div class="sidebar-header p-6 flex justify-center">
+          <h1 class="text-2xl font-black text-red-600 tracking-tighter uppercase">Streamflix</h1>
+        </div>
+
+        <div class="flex-1 overflow-y-auto no-scrollbar px-2 pt-4">
           <UInput
             v-model="search"
-            placeholder="Search categories..."
             icon="i-lucide-search"
-            size="sm"
-            class="mb-2"
-            clearable
+            variant="subtle"
+            placeholder="Search Categories"
+            block
+            class="transition-all"
+            :ui="{ 
+              base: 'bg-[#333] border-transparent focus:border-red-600',
+              leadingIcon: 'text-gray-500'
+            }"
           />
-        </div>
-        <div class="categories-list px-2">
-          <!-- Live TV Categories -->
-          <div v-if="selectedTab === 'live-tv'">
-            <div
-              v-for="category in filteredLiveCategories"
-              :key="category.category_id || category.id"
-              class="p-2 mb-2 text-sm rounded-md bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-primary-700 transition-colors"
-              :class="{
-                'bg-primary-200 dark:bg-primary-800 border-2 border-primary-500':
-                  selectedCategory?.category_id === category.category_id ||
-                  selectedCategory?.id === category.id,
-              }"
-              @click="setSelectedCategory(category)"
-            >
-              <span>{{ category.category_name || category.title }}</span>
-            </div>
-            <div
-              v-if="filteredLiveCategories.length === 0 && search"
-              class="text-center py-4 text-gray-400 text-sm"
-            >
-              <Icon
-                name="i-lucide-search-x"
-                class="w-8 h-8 mx-auto mb-2 opacity-50"
-              />
-              <p>No categories found</p>
-            </div>
-          </div>
-          <!-- Movies Categories -->
-          <div v-if="selectedTab === 'movies'">
-            <div
-              v-for="category in filteredMoviesCategories"
-              :key="category.category_id || category.id"
-              class="p-2 mb-2 text-sm rounded-md bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-primary-700 transition-colors"
-              :class="{
-                'bg-primary-200 dark:bg-primary-800 border-2 border-primary-500':
-                  selectedCategory?.category_id === category.category_id ||
-                  selectedCategory?.id === category.id,
-              }"
-              @click="setSelectedCategory(category)"
-            >
-              <span>{{ category.category_name || category.title }}</span>
-            </div>
-            <div
-              v-if="filteredMoviesCategories.length === 0 && search"
-              class="text-center py-4 text-gray-400 text-sm"
-            >
-              <Icon
-                name="i-lucide-search-x"
-                class="w-8 h-8 mx-auto mb-2 opacity-50"
-              />
-              <p>No categories found</p>
-            </div>
-          </div>
-          <!-- Series Categories -->
-          <div v-if="selectedTab === 'series'">
-            <div
-              v-for="category in filteredSeriesCategories"
-              :key="category.category_id || category.id"
-              class="p-2 mb-2 text-sm rounded-md bg-gray-100 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-primary-700 transition-colors"
-              :class="{
-                'bg-primary-200 dark:bg-primary-800 border-2 border-primary-500':
-                  selectedCategory?.category_id === category.category_id ||
-                  selectedCategory?.id === category.id,
-              }"
-              @click="setSelectedCategory(category)"
-            >
-              <span>{{ category.category_name || category.title }}</span>
-            </div>
-            <div
-              v-if="filteredSeriesCategories.length === 0 && search"
-              class="text-center py-4 text-gray-400 text-sm"
-            >
-              <Icon
-                name="i-lucide-search-x"
-                class="w-8 h-8 mx-auto mb-2 opacity-50"
-              />
-              <p>No categories found</p>
-            </div>
+
+          <div class="space-y-0.5">
+            <!-- Categories List -->
+            <template v-if="['live-tv', 'movies', 'series'].includes(selectedTab)">
+              <button
+                v-for="category in (selectedTab === 'live-tv' ? filteredLiveCategories : selectedTab === 'movies' ? filteredMoviesCategories : filteredSeriesCategories)"
+                :key="category.category_id || category.id"
+                @click="setSelectedCategory(category)"
+                class="w-full text-left p-2.5 text-sm transition-all flex items-center gap-3 border-l-4"
+                :class="[
+                  (selectedCategory?.category_id === category.category_id || selectedCategory?.id === category.id)
+                    ? 'bg-white/5 border-red-600 text-white font-bold'
+                    : 'border-transparent text-gray-500 hover:text-white hover:bg-white/5'
+                ]"
+              >
+                 <span class="truncate">{{ category.category_name || category.title }}</span>
+              </button>
+            </template>
           </div>
         </div>
-      </div>
-      <div class="sidenav mb-2 flex flex-row w-full justify-around">
-        <button
-          class="flex flex-col items-center gap-1 cursor-pointer"
-          @click="setSelectedTab('live-tv')"
-        >
-          <Icon
-            name="lucide:tv"
-            class="w-6 h-6"
-            :class="{ 'text-primary': selectedTab === 'live-tv' }"
-            aria-hidden="true"
-          />
-          <span
-            class="text-xs"
-            :class="{ 'text-primary': selectedTab === 'live-tv' }"
-          >
-            Live TV
-          </span>
-        </button>
 
-        <button
-          class="flex flex-col items-center gap-1 cursor-pointer"
-          @click="setSelectedTab('movies')"
-        >
-          <Icon
-            name="lucide:film"
-            class="w-6 h-6"
-            :class="{ 'text-primary': selectedTab === 'movies' }"
-            aria-hidden="true"
-          />
-          <span
-            class="text-xs"
-            :class="{ 'text-primary': selectedTab === 'movies' }"
+        <!-- Bottom Nav -->
+        <div class="p-4 bg-black/50 grid grid-cols-5 gap-1">
+          <button 
+            v-for="tab in [
+              { id: 'live-tv', icon: 'i-lucide-tv' },
+              { id: 'movies', icon: 'i-lucide-film' },
+              { id: 'series', icon: 'i-lucide-monitor-play' },
+              { id: 'favorites', icon: 'i-lucide-heart' },
+              { id: 'account', icon: 'i-lucide-user' }
+            ]"
+            :key="tab.id"
+            @click="setSelectedTab(tab.id)"
+            class="flex flex-col items-center justify-center p-2 rounded transition-all"
+            :class="selectedTab === tab.id ? 'text-red-600' : 'text-gray-500 hover:text-white'"
           >
-            Movies
-          </span>
-        </button>
+            <UIcon :name="tab.icon" class="w-6 h-6" />
+          </button>
+        </div>
+      </div>
 
-        <button
-          class="flex flex-col items-center gap-1 cursor-pointer"
-          @click="setSelectedTab('series')"
-        >
-          <Icon
-            name="lucide:monitor-play"
-            class="w-6 h-6"
-            :class="{ 'text-primary': selectedTab === 'series' }"
-            aria-hidden="true"
-          />
-          <span
-            class="text-xs"
-            :class="{ 'text-primary': selectedTab === 'series' }"
-          >
-            Series
-          </span>
-        </button>
-        <button
-          class="flex flex-col items-center gap-1 cursor-pointer"
-          @click="setSelectedTab('favorites')"
-        >
-          <Icon
-            name="lucide:heart"
-            class="w-6 h-6"
-            :class="{ 'text-primary': selectedTab === 'favorites' }"
-            aria-hidden="true"
-          />
-          <span class="text-xs">Favorites</span>
-        </button>
-        <button
-          class="flex flex-col items-center gap-1 cursor-pointer"
-          @click="setSelectedTab('account')"
-        >
-          <Icon
-            name="lucide:user"
-            class="w-6 h-6"
-            :class="{ 'text-primary': selectedTab === 'account' }"
-            aria-hidden="true"
-          />
-          <span class="text-xs">Account</span>
-        </button>
-      </div>
-    </div>
-    <div class="maincontent w-full h-screen overflow-auto p-10">
-      <UProgress v-if="progress > 0 && progress < 100" v-model="progress" />
-      <div v-if="selectedTab == 'live-tv'">
-        <Live />
-      </div>
-      <div v-if="selectedTab == 'movies'" @scroll="onScroll"><Movies /></div>
-      <div v-if="selectedTab == 'series'">
-        <Series />
-      </div>
-      <div v-if="selectedTab == 'favorites'">
-        <div class="space-y-6">
-          <div class="flex items-center justify-between mb-6">
+      <!-- Main Content -->
+      <div class="flex-1 h-screen overflow-y-auto bg-black relative p-8">
+        <UProgress v-if="progress > 0 && progress < 100" v-model="progress" color="error" class="mb-4" />
+        
+        <!-- Content Views -->
+        <div v-show="selectedTab === 'live-tv'"><Live /></div>
+        <div v-show="selectedTab === 'movies'"><Movies /></div>
+        <div v-show="selectedTab === 'series'"><Series /></div>
+        
+        <!-- Favorites -->
+        <div v-if="selectedTab === 'favorites'">
+          <div class="mb-8 flex items-center justify-between">
             <h2 class="text-3xl font-bold">My Favorites</h2>
-            <UButton
-              v-if="favoritesList.length > 0"
-              icon="i-lucide-trash-2"
-              color="red"
-              variant="outline"
-              @click="handleClearFavorites"
-            >
-              Clear All
-            </UButton>
+            <UButton v-if="favoritesList.length > 0" icon="i-lucide-trash-2" color="error" variant="soft" @click="handleClearFavorites">Clear All</UButton>
           </div>
 
-          <EmptyState
-            v-if="favoritesList.length === 0"
-            icon="i-lucide-heart"
-            title="No Favorites Yet"
-            description="Start adding your favorite channels, movies, and series by clicking the heart icon."
-          />
+          <EmptyState v-if="favoritesList.length === 0" icon="i-lucide-heart" title="No Favorites Yet" />
 
-          <div v-else class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            <div v-for="fav in favoritesList" :key="fav.id">
-              <Card
-                :item="fav.data"
-                :name="fav.name"
-                :image="fav.image"
-                :contentType="fav.contentType"
-                :providerType="fav.providerType"
-                @click="playFavoriteItem(fav)"
-              />
+          <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <Card 
+              v-for="fav in favoritesList" 
+              :key="fav.id"
+              :item="fav.data"
+              :name="fav.name"
+              :image="fav.image"
+              :contentType="fav.contentType"
+              :providerType="fav.providerType"
+              @click="playFavoriteItem(fav)"
+            />
+          </div>
+        </div>
+
+        <!-- Account -->
+        <div v-if="selectedTab === 'account'">
+          <div class="max-w-md mx-auto py-12">
+            <h2 class="text-2xl font-bold mb-8">Account Settings</h2>
+            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <span class="text-gray-500 text-sm">Active Provider</span>
+              <p class="text-xl font-bold uppercase">{{ providerType }}</p>
             </div>
+            <UButton block size="xl" color="error" icon="i-lucide-log-out" @click="handleLogout">Sign Out</UButton>
           </div>
         </div>
       </div>
-      <div v-if="selectedTab == 'account'">
-        <div class="flex flex-col gap-4 max-w-md mx-auto">
-          <h1 class="text-2xl text-center font-bold mb-4">Account Settings</h1>
-
-          <div class="p-4 bg-gray-800 rounded-lg">
-            <h2 class="text-lg font-semibold mb-2">Current Provider</h2>
-            <p class="text-gray-400 capitalize">{{ providerType }}</p>
-          </div>
-
-          <UButton
-            leadingIcon="i-lucide-log-out"
-            size="xl"
-            color="red"
-            variant="solid"
-            @click="handleLogout"
-          >
-            Sign Out
-          </UButton>
-        </div>
-      </div>
-      <UModal class="m-10" fullscreen v-model:open="modalOpen">
-        <template #content>
-          <div
-            class="modal-container flex flex-row h-full w-full bg-gray-900 dark:bg-gray-950"
-          >
-            <!-- Main Video Area -->
-            <VideoPlayer />
-
-            <!-- Channels Sidebar (only for live TV) -->
-            <ChannelsSidebar v-if="selectedTab === 'live-tv'" />
-
-            <!-- Series Details Sidebar (only for series) -->
-            <SeriesSidebar
-              v-if="selectedTab === 'series'"
-              :selected-tab="selectedTab"
-            />
-
-            <!-- Movie Details Sidebar (only for movies) -->
-            <MovieSidebar
-              v-if="selectedTab === 'movies'"
-              :selected-tab="selectedTab"
-            />
-          </div>
-        </template>
-      </UModal>
     </div>
+
+  <!-- Player Modal (Fullscreen overlay) -->
+  <UModal v-model:open="modalOpen" fullscreen :close="false">
+    <template #content>
+      <div class="w-full h-full bg-black flex overflow-hidden relative">
+        <!-- Player Exit Button (Moved to top-left to avoid sidebar conflict) -->
+        <UButton 
+          @click="modalOpen = false"
+          icon="i-lucide-x"
+          size="xl"
+          color="error"
+          variant="solid" 
+          class="absolute top-8 left-8 z-[10000] rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all"
+        />
+
+         <VideoPlayer class="flex-1" />
+         
+         <!-- Sidebars Wrapper (Ensuring clear width and top-level interaction) -->
+         <div class="h-full shrink-0 relative z-[200] border-l border-white/10" :class="selectedTab === 'live-tv' ? 'w-80' : 'w-96'">
+           <ChannelsSidebar v-if="selectedTab === 'live-tv'" class="w-full h-full" />
+           <SeriesSidebar v-if="selectedTab === 'series'" :selected-tab="selectedTab" class="w-full h-full" />
+           <MovieSidebar v-if="selectedTab === 'movies'" :selected-tab="selectedTab" class="w-full h-full" />
+         </div>
+      </div>
+    </template>
+  </UModal>
   </div>
 </template>
 
@@ -455,7 +312,7 @@ function handleLogout() {
   toast.add({
     title: "Logged Out",
     description: "You have been successfully logged out",
-    color: "green",
+    color: "success",
   });
 
   navigateTo("/");
@@ -497,6 +354,14 @@ async function playFavoriteItem(fav: any) {
     } else if (fav.contentType === 'movies') {
       await xtream.playVodStream(fav.data);
     }
+  }
+}
+
+function onScroll(event: Event) {
+  // Infinite scroll logic can be added here if needed
+  const target = event.target as HTMLElement;
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
+    // Load more items
   }
 }
 </script>

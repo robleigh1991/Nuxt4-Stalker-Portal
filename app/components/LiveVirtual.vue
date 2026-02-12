@@ -11,7 +11,7 @@
 
     <!-- Loading State -->
     <div v-if="isLoading" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-      <CardSkeleton v-for="i in 12" :key="i" />
+      <SkeletonsCardSkeleton v-for="i in 12" :key="i" />
     </div>
 
     <!-- Empty State -->

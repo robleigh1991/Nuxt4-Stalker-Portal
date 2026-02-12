@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="currentMovie"
-    class="movie-sidebar w-96 bg-gray-800/95 dark:bg-gray-900/95 border-l border-gray-700 flex flex-col overflow-hidden"
+    class="movie-sidebar w-full h-full bg-[#141414] flex flex-col overflow-hidden"
   >
     <!-- Movie Header with Background -->
     <div v-if="movieDetails" class="movie-header relative h-64 overflow-hidden">
@@ -190,7 +190,6 @@ const { movieDetails, loadingMovieDetails, movieDetailsError, trailerVideo } =
 
 <style scoped>
 .movie-sidebar {
-  backdrop-filter: blur(10px);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
 }
 

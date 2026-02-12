@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="availableChannels.length > 0"
-    class="channels-sidebar w-80 bg-gray-800/95 dark:bg-gray-900/95 border-l border-gray-700 flex flex-col overflow-hidden"
+    class="channels-sidebar w-full h-full bg-[#141414] flex flex-col overflow-hidden"
   >
     <!-- Sidebar Header -->
     <div class="sidebar-header px-4 py-4 border-b border-gray-700">
@@ -55,6 +55,15 @@
             v-if="isCurrentChannel(channel)"
             name="i-lucide-play-circle"
             class="w-5 h-5 text-primary-400 shrink-0"
+          />
+        </div>
+
+        <!-- Mini EPG for Active Channel -->
+        <div v-if="isCurrentChannel(channel)" class="mt-4 pt-4 border-t border-white/5">
+          <EPGGrid
+            :channelId="providerType === 'stalker' ? channel.id : channel.stream_id"
+            :providerType="providerType"
+            class="h-64"
           />
         </div>
       </div>
@@ -149,14 +158,14 @@ async function switchChannel(channel: any) {
 function closeModal() {
   if (providerType.value === "stalker") {
     stalker.modalOpen = false;
+  } else if (providerType.value === 'xtream') {
+    xtream.modalOpen = false;
   }
-  // Add xtream modal close logic when implemented
 }
 </script>
 
 <style scoped>
 .channels-sidebar {
-  backdrop-filter: blur(10px);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
 }
 

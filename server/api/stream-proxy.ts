@@ -1,4 +1,4 @@
-// server/api/stream-proxy.get.ts
+// server/api/stream-proxy.ts
 export default defineEventHandler(async (event) => {
   const query = getQuery(event);
   const targetUrl = query.url as string;
@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
 
   // Detect M3U8
   const parsedUrl = new URL(targetUrl);
-  const isM3U8 = 
+  const isM3U8 =
     parsedUrl.pathname.toLowerCase().endsWith('.m3u8') ||
     parsedUrl.search.toLowerCase().includes('m3u8') ||
     forceM3u8;
@@ -213,7 +213,7 @@ function rewriteM3U8(
 ): string {
   const protocol = getHeader(event, 'x-forwarded-proto') || 'http';
   const host = getHeader(event, 'host') || 'localhost';
-  const proxyBase = `${protocol}://${host}/api/stream-proxy`;
+  const proxyBase = `https://nuxt4-stalker-portal.onrender.com/api/stream-proxy`;
 
   const parsedBase = new URL(baseUrl);
   const root = `${parsedBase.protocol}//${parsedBase.host}`;

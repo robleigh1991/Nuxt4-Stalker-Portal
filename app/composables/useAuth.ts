@@ -100,7 +100,7 @@ export const useAuth = () => {
       toast.add({
         title: 'Success',
         description: 'Successfully connected to Stalker Portal',
-        color: 'green',
+        color: 'success',
       });
 
       return true;
@@ -108,7 +108,7 @@ export const useAuth = () => {
       toast.add({
         title: 'Login Failed',
         description: error.message || 'Please check your credentials and try again',
-        color: 'red',
+        color: 'error',
       });
       return false;
     } finally {
@@ -155,7 +155,7 @@ export const useAuth = () => {
       toast.add({
         title: 'Success',
         description: 'Successfully connected to Xtream service',
-        color: 'green',
+        color: 'success',
       });
 
       return true;
@@ -163,7 +163,7 @@ export const useAuth = () => {
       toast.add({
         title: 'Login Failed',
         description: error.message || 'Please check your credentials and try again',
-        color: 'red',
+        color: 'error',
       });
       return false;
     } finally {
@@ -194,7 +194,7 @@ export const useAuth = () => {
     toast.add({
       title: 'Logged Out',
       description: 'You have been successfully logged out',
-      color: 'green',
+      color: 'success',
     });
 
     // Redirect to login

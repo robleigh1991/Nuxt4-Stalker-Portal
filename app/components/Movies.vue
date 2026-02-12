@@ -1,19 +1,25 @@
 <template>
   <div>
     <div class="flex w-full flex-row gap-4">
-      <UInput
-        class="w-full mb-4"
-        size="xl"
-        placeholder="Search for movies"
+    <div class="mb-8 flex-1">
+      <UInput 
         v-model="search"
         icon="i-lucide-search"
-        clearable
+        size="xl"
+        placeholder="Search movies..."
+        block
+        variant="subtle"
+        :ui="{ 
+          base: 'bg-[#141414] border-transparent focus:border-red-600',
+          leadingIcon: 'text-gray-500'
+        }"
       />
+    </div>
     </div>
 
     <!-- Loading State -->
     <div v-if="isCategoryLoading" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-      <CardSkeleton v-for="i in 12" :key="i" />
+      <SkeletonsCardSkeleton v-for="i in 12" :key="i" />
     </div>
 
     <!-- Empty State -->
@@ -118,9 +124,7 @@ const filteredMoviesItems = computed(() => {
 // Get movie image based on provider
 function getMovieImage(item: any): string {
   if (providerType.value === "stalker") {
-    return item.screenshot_uri
-      ? `https://proxy.duckduckgo.com/iu/?u=${item.screenshot_uri}`
-      : "";
+    return item.screenshot_uri || "";
   } else if (providerType.value === "xtream") {
     return item.stream_icon || item.cover || "";
   }
@@ -139,8 +143,8 @@ async function setSelectedMovie(item: any) {
   if (!item) {
     toast.add({
       title: "Error",
-      description: "Invalid movie item",
-      color: "red",
+      description: "Invalid movie movie item",
+      color: "error",
       timeout: 3000,
     });
     return;
@@ -211,7 +215,7 @@ async function setSelectedMovie(item: any) {
     toast.add({
       title: "Playback Error",
       description: errorMessage,
-      color: "red",
+      color: "error",
       timeout: 5000,
     });
 

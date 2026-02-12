@@ -14,6 +14,7 @@ export const useStalkerStore = defineStore("stalker", {
     seriesItems: {} as Record<string, any[]>,
     seriesSeasons: {} as Record<string, any[]>,
     seriesEpisodes: {} as Record<string, any[]>,
+    epgData: {} as Record<string, any[]>,
     selectedCategory: false as any,
     sourceUrl: null as string | null,
     currentChannel: null as any | null,
@@ -52,7 +53,8 @@ export const useStalkerStore = defineStore("stalker", {
 
       // Find old cache keys
       Object.keys(this.cacheConfig.lastAccessed).forEach(key => {
-        if (now - this.cacheConfig.lastAccessed[key] > timeout) {
+        const lastAccessed = this.cacheConfig.lastAccessed[key];
+        if (lastAccessed && now - lastAccessed > timeout) {
           keysToRemove.push(key);
         }
       });
@@ -77,19 +79,21 @@ export const useStalkerStore = defineStore("stalker", {
 
     enforceMaxCategories() {
       const allKeys = Object.keys(this.cacheConfig.lastAccessed);
-      
+
       if (allKeys.length <= this.cacheConfig.maxCachedCategories) {
         return;
       }
 
       // Sort by last accessed (oldest first)
-      const sortedKeys = allKeys.sort((a, b) => 
-        this.cacheConfig.lastAccessed[a] - this.cacheConfig.lastAccessed[b]
-      );
+      const sortedKeys = allKeys.sort((a, b) => {
+        const accessA = this.cacheConfig.lastAccessed[a] || 0;
+        const accessB = this.cacheConfig.lastAccessed[b] || 0;
+        return accessA - accessB;
+      });
 
       // Remove oldest entries beyond the limit
       const keysToRemove = sortedKeys.slice(0, allKeys.length - this.cacheConfig.maxCachedCategories);
-      
+
       keysToRemove.forEach(key => {
         delete this.liveItems[key];
         delete this.moviesItems[key];
@@ -156,10 +160,11 @@ export const useStalkerStore = defineStore("stalker", {
         this.getSeriesCategories(),
       ]);
 
-      this.selectedCategory = this.liveCategories[1];
-      this.liveItems[this.selectedCategory.id + "_1"] = await this.getLiveItems(
-        this.selectedCategory.id
-      );
+      this.selectedCategory = this.liveCategories?.[1] || this.liveCategories?.[0] || null;
+      if (this.selectedCategory) {
+        const key = this.selectedCategory.id + "_1";
+        this.liveItems[key] = await this.getLiveItems(this.selectedCategory.id) || [];
+      }
       return "done";
     },
 
@@ -240,13 +245,13 @@ export const useStalkerStore = defineStore("stalker", {
         }
 
         this.progress = 0;
-        
+
         // Limit items to prevent memory overflow
         this.liveItems[cacheKey] = this.limitItemsArray(this.liveItems[cacheKey]);
-        
+
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
-        
+
         return this.liveItems[cacheKey];
       } catch (err) {
         console.error("Failed to load live items:", err);
@@ -328,13 +333,13 @@ export const useStalkerStore = defineStore("stalker", {
         }
 
         this.progress = 0;
-        
+
         // Limit items to prevent memory overflow
         this.moviesItems[cacheKey] = this.limitItemsArray(this.moviesItems[cacheKey]);
-        
+
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
-        
+
         return this.moviesItems[cacheKey];
       } catch (err) {
         console.error("Failed to load movie items:", err);
@@ -416,13 +421,13 @@ export const useStalkerStore = defineStore("stalker", {
         }
 
         this.progress = 0;
-        
+
         // Limit items to prevent memory overflow
         this.seriesItems[cacheKey] = this.limitItemsArray(this.seriesItems[cacheKey]);
-        
+
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
-        
+
         return this.seriesItems[cacheKey];
       } catch (err) {
         console.error("Failed to load series items:", err);
@@ -454,6 +459,31 @@ export const useStalkerStore = defineStore("stalker", {
       } catch (err) {
         console.error("Failed to load series seasons:", err);
         throw err;
+      }
+    },
+
+    async getEPG(channelId: number) {
+      if (this.epgData[channelId]) {
+        return this.epgData[channelId];
+      }
+
+      try {
+        const data = await $fetch("/api/stalker/epg", {
+          method: "POST",
+          body: {
+            portalurl: this.portalurl,
+            macaddress: this.macaddress,
+            token: this.token,
+            channelId: channelId,
+          },
+        });
+
+        // Stalker EPG response format can vary, but usually it's in data.js.epg
+        this.epgData[channelId] = data.js || [];
+        return this.epgData[channelId];
+      } catch (err) {
+        console.error("Failed to load Stalker EPG:", err);
+        return [];
       }
     },
 
@@ -509,15 +539,15 @@ export const useStalkerStore = defineStore("stalker", {
       this.cacheConfig.lastAccessed = {};
       console.log('[Memory] Cleared all cache');
     },
-    
+
     getCacheStats() {
       const liveCount = Object.keys(this.liveItems).length;
       const moviesCount = Object.keys(this.moviesItems).length;
       const seriesCount = Object.keys(this.seriesItems).length;
       const totalItems = Object.values(this.liveItems).flat().length +
-                        Object.values(this.moviesItems).flat().length +
-                        Object.values(this.seriesItems).flat().length;
-      
+        Object.values(this.moviesItems).flat().length +
+        Object.values(this.seriesItems).flat().length;
+
       return {
         cachedCategories: liveCount + moviesCount + seriesCount,
         totalItems,

@@ -3,15 +3,17 @@
     <!-- Loading Overlay -->
     <div
       v-if="isLoading"
-      class="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      class="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md"
     >
       <div class="text-center">
         <div
-          class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"
+          class="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
         ></div>
-        <p class="text-white text-lg">Loading stream...</p>
+        <p class="text-white font-medium">Loading stream...</p>
       </div>
     </div>
+
+
 
     <!-- Video Player -->
     <div
@@ -51,15 +53,28 @@
           onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
         />
         <div class="flex-1">
-          <h3 class="text-xl font-bold text-white">
-            {{ currentChannel.name }}
-          </h3>
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="text-xl font-bold text-white">
+              {{ currentChannel.name }}
+            </h3>
+            <!-- Current Program Short Info -->
+            <div v-if="currentProgram" class="flex items-center gap-2 text-primary-400 font-mono text-xs">
+              <span class="font-bold uppercase tracking-widest text-[10px]">Now:</span>
+              <span>{{ currentProgram.title || currentProgram.t_name }}</span>
+            </div>
+          </div>
+          
+          <!-- Program Description or Channel Description -->
           <p
-            v-if="currentChannel.description"
-            class="text-sm text-gray-400 mt-1 line-clamp-2"
+            class="text-sm text-gray-400 mt-1 line-clamp-1"
           >
-            {{ currentChannel.description }}
+            {{ currentProgram ? (currentProgram.description || currentProgram.descr) : currentChannel.description }}
           </p>
+
+          <!-- Simple Progress Bar for current show -->
+          <div v-if="currentProgram" class="mt-3 w-full max-w-sm">
+            <UProgress :value="programProgress" color="primary" size="xs" />
+          </div>
         </div>
       </div>
     </div>
@@ -96,9 +111,59 @@ const modalOpen = computed(() => {
     : xtream.modalOpen;
 });
 
+
+
 const videoElement = ref<HTMLVideoElement | null>(null);
 const isLoading = ref(false);
 const isComponentMounted = ref(false);
+const currentTime = ref(Date.now());
+
+// Timer for current program updates
+let timeUpdateInterval: NodeJS.Timeout;
+
+// Current EPG Data helper
+const currentEPGData = computed(() => {
+  if (!currentChannel.value) return [];
+  const id = providerType.value === 'stalker' 
+    ? currentChannel.value.id 
+    : currentChannel.value.stream_id;
+    
+  return providerType.value === 'stalker' 
+    ? stalker.epgData[id] || [] 
+    : xtream.epgData[id] || [];
+});
+
+const currentProgram = computed(() => {
+  if (!currentEPGData.value.length) return null;
+  
+  return currentEPGData.value.find((p: any) => {
+    let start, end;
+    if (providerType.value === 'stalker') {
+      start = new Date(p.start || p.t_time).getTime();
+      end = new Date(p.end || p.t_time_to).getTime();
+    } else {
+      start = new Date(p.start || p.start_timestamp).getTime();
+      end = new Date(p.end || p.end_timestamp).getTime();
+    }
+    return currentTime.value >= start && currentTime.value < end;
+  });
+});
+
+const programProgress = computed(() => {
+  if (!currentProgram.value) return 0;
+  let start, end;
+  if (providerType.value === 'stalker') {
+    start = new Date(currentProgram.value.start || currentProgram.value.t_time).getTime();
+    end = new Date(currentProgram.value.end || currentProgram.value.t_time_to).getTime();
+  } else {
+    start = new Date(currentProgram.value.start || currentProgram.value.start_timestamp).getTime();
+    end = new Date(currentProgram.value.end || currentProgram.value.end_timestamp).getTime();
+  }
+  
+  const total = end - start;
+  const elapsed = currentTime.value - start;
+  return Math.round((elapsed / total) * 100);
+});
 
 let player: any = null;
 let retryCount = 0;
@@ -108,7 +173,17 @@ let stopWatcher: (() => void) | null = null;
 
 const proxyUrl = computed(() => {
   if (!sourceUrl.value) return "";
- return `/api/stream-proxy?url=${encodeURIComponent(sourceUrl.value)}`;
+  let url = `https://nuxt4-stalker-portal.onrender.com/api/stream-proxy?url=${encodeURIComponent(sourceUrl.value)}`;
+  
+  if (providerType.value === 'stalker') {
+    if (stalker.portalurl) url += `&portalurl=${encodeURIComponent(stalker.portalurl)}`;
+    if (stalker.macaddress) url += `&macaddress=${encodeURIComponent(stalker.macaddress)}`;
+    if (stalker.token) url += `&token=${encodeURIComponent(stalker.token)}`;
+  } else if (providerType.value === 'xtream') {
+    // Xtream usually doesn't need special headers for the stream itself beyond the URL
+  }
+  
+ return url;
 });
 
 const options = {
@@ -179,9 +254,11 @@ const handleError = async (event: any) => {
   if (sourceUrl.value && errorCode) {
     try {
       // Attempt to fetch the stream URL to get HTTP status
+      // Pre-check stream status
       const response = await fetch(proxyUrl.value, { 
-        method: 'HEAD',
-        signal: AbortSignal.timeout(8000) // Increased to 8 seconds
+        method: 'GET', // Switch to GET with range for better compatibility
+        headers: { 'Range': 'bytes=0-0' },
+        signal: AbortSignal.timeout(8000)
       });
       
       if (!response.ok) {
@@ -210,7 +287,7 @@ const handleError = async (event: any) => {
   toast.add({
     title: httpStatus ? `Stream Error (${httpStatus})` : "Playback Error",
     description: errorMessage,
-    color: "red",
+    color: "error",
     timeout: isRetryableError ? 8000 : 5000,
     actions: isRetryableError ? [{
       label: 'Retry',
@@ -249,7 +326,7 @@ const setLoadingWithTimeout = (duration: number = 45000) => {
         toast.add({
           title: "Loading Timeout",
           description: "Stream is taking longer than expected. Please try again.",
-          color: "orange",
+          color: "warning",
           timeout: 5000,
         });
       }
@@ -264,7 +341,7 @@ const retryPlayback = async () => {
     toast.add({
       title: "Max Retries Reached",
       description: `Failed after ${MAX_RETRIES} attempts. Please try a different stream.`,
-      color: "red",
+      color: "error",
       timeout: 5000,
     });
     return;
@@ -298,16 +375,15 @@ const loadSource = async (url: string) => {
         return;
       }
 
-      const streamUrl = `/api/stream-proxy?url=${encodeURIComponent(url)}`;
+      const streamUrl = proxyUrl.value;
       console.log('[VideoPlayer] Loading source:', streamUrl);
 
       // Optional: Check if stream URL is accessible before loading
-      // Note: This is a soft check - we continue even if it fails
-      // because some streams don't support HEAD requests
       try {
         const checkResponse = await fetch(streamUrl, {
-          method: 'HEAD',
-          signal: AbortSignal.timeout(8000) // Increased to 8 seconds
+          method: 'GET',
+          headers: { 'Range': 'bytes=0-0' },
+          signal: AbortSignal.timeout(8000)
         });
         
         if (checkResponse.ok) {
@@ -422,7 +498,7 @@ const loadSource = async (url: string) => {
         toast.add({
           title: "Failed to Load",
           description: err.message || "Failed to load video stream.",
-          color: "red",
+          color: "error",
           timeout: 5000,
         });
       }
@@ -495,7 +571,7 @@ onMounted(async () => {
         toast.add({
           title: "Buffering Issue",
           description: "Stream is experiencing network issues. Trying to recover...",
-          color: "orange",
+          color: "warning",
           timeout: 3000,
         });
       });
@@ -507,7 +583,7 @@ onMounted(async () => {
       toast.add({
         title: "Initialization Error",
         description: "Failed to initialize video player.",
-        color: "red",
+        color: "error",
         timeout: 0,
       });
     }
@@ -524,11 +600,34 @@ onMounted(async () => {
       await loadSource(newUrl);
     }
   });
+
+  // Start time update interval
+  timeUpdateInterval = setInterval(() => {
+    currentTime.value = Date.now();
+  }, 30000); // Every 30 seconds
+
+  // Fetch initial EPG for the current channel
+  if (currentChannel.value) {
+    const id = providerType.value === "stalker"
+      ? currentChannel.value.id
+      : currentChannel.value.stream_id;
+
+    if (providerType.value === "stalker") {
+      stalker.getEPG(Number(id));
+    } else {
+      xtream.getEPG(Number(id));
+    }
+  }
 });
 
 onUnmounted(() => {
   console.log('[VideoPlayer] Cleaning up component...');
   isComponentMounted.value = false;
+
+  // Stop timer
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval);
+  }
 
   // Stop watcher first
   if (stopWatcher) {

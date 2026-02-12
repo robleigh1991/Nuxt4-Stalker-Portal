@@ -26,6 +26,11 @@ useSeoMeta({
 const memoryMonitor = useMemoryMonitor();
 const config = useRuntimeConfig();
 
+// Initialize TV Navigation
+if (process.client) {
+  useTVNavigation();
+}
+
 onMounted(() => {
   // Start memory monitoring (check every 10 seconds)
   memoryMonitor.startMonitoring(10000);
@@ -37,9 +42,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <UApp>
-    <UMain>
-      <NuxtPage />
-    </UMain>
+  <UApp :toaster="{ position: 'top-right', expand: true }">
+    <NuxtPage />
   </UApp>
 </template>

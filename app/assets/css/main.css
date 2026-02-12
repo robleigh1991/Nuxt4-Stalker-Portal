@@ -1,5 +1,35 @@
 @import "tailwindcss";
-@import "@nuxt/ui";
+@import "~~/node_modules/@nuxt/ui/dist/runtime/index.css";
 
-@theme static {
+@layer components {
+
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        /* IE and Edge */
+        scrollbar-width: none;
+        /* Firefox */
+    }
+
+    /* Netflix-style Card Utilities */
+    .netflix-card {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        border-radius: 0.375rem;
+    }
+
+    .netflix-card:hover,
+    .netflix-card:focus-visible {
+        transform: scale(1.05);
+        z-index: 50;
+        box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+        outline: 2px solid white;
+        outline-offset: 2px;
+    }
 }

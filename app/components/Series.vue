@@ -1,10 +1,18 @@
 <template>
-  <UInput
-    class="w-full mb-4"
-    size="xl"
-    placeholder="Search for series"
-    v-model="search"
-  />
+    <div class="mb-8">
+      <UInput 
+        v-model="search"
+        icon="i-lucide-search"
+        size="xl"
+        placeholder="Search series..."
+        block
+        variant="subtle"
+        :ui="{ 
+          base: 'bg-[#141414] border-transparent focus:border-red-600',
+          leadingIcon: 'text-gray-500'
+        }"
+      />
+    </div>
   <div
     class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
   >
@@ -72,9 +80,7 @@ const filteredSeriesItems = computed(() => {
 // Get series image based on provider
 function getSeriesImage(item: any): string {
   if (providerType.value === "stalker") {
-    return item.screenshot_uri
-      ? `https://proxy.duckduckgo.com/iu/?u=${item.screenshot_uri}`
-      : "";
+    return item.screenshot_uri || "";
   } else if (providerType.value === "xtream") {
     return item.cover || item.stream_icon || "";
   }
