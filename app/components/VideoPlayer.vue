@@ -303,6 +303,7 @@ const getErrorMessage = (code: number, httpStatus?: number): string => {
       404: "Not Found - Stream no longer available",
       408: "Request Timeout - Server took too long to respond",
       429: "Too Many Requests - Please wait before retrying",
+      458: "Stream Not Available - Content may be geo-blocked or restricted",
       459: "Stream Offline - This channel is currently unavailable",
       500: "Internal Server Error - Provider issue, try again later",
       502: "Bad Gateway - Server is temporarily unavailable",
@@ -371,7 +372,13 @@ const handleError = async (event: any) => {
   });
 
   // Check if this is a .ts stream that failed and we haven't tried .m3u8 fallback yet
-  if (streamFormat.value.type === 'mpegts' && !hasTriedM3u8Fallback) {
+  // BUT skip fallback for specific errors that won't be fixed by format change
+  const skipFallbackErrors = [458, 401, 403, 404]; // Geo-block, auth, not found
+  const shouldTryFallback = streamFormat.value.type === 'mpegts' &&
+                           !hasTriedM3u8Fallback &&
+                           (!httpStatus || !skipFallbackErrors.includes(httpStatus));
+
+  if (shouldTryFallback) {
     console.log('[VideoPlayer] .ts stream failed, trying .m3u8 fallback...');
     hasTriedM3u8Fallback = true;
 
