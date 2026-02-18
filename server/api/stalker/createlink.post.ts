@@ -24,7 +24,10 @@ export default defineEventHandler(async (event) => {
     if (cmd.includes("stream=")) {
       console.log("🎬 Stream URL detected in cmd");
       cmd = cmd.replace(/ffmpeg/gi, "");
-      // Let .ts streams through naturally - VideoPlayer will handle fallback
+      // Force .ts to .m3u8 for streaming URLs (upstream servers often require this)
+      if (cmd.includes("extension=")) {
+        cmd = cmd.replace(/extension=ts/gi, "extension=m3u8");
+      }
       return cmd;
     }
 
@@ -135,8 +138,12 @@ export default defineEventHandler(async (event) => {
       return sourceLink.replace(/ffmpeg/gi, "");
     }
 
+    // Force .m3u8 for extension parameters (many IPTV servers require this)
+    if (sourceLink.includes("extension=")) {
+      sourceLink = sourceLink.replace(/extension=ts/gi, "extension=m3u8");
+    }
+
     // Remove ffmpeg from the source link
-    // Keep original format - VideoPlayer will fallback to .m3u8 if .ts fails
     sourceLink = sourceLink.replace(/ffmpeg/gi, "");
 
     console.log("✅ Final source link:", sourceLink);
