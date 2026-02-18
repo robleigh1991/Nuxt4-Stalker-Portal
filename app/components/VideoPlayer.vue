@@ -9,8 +9,8 @@
         <div
           class="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
         ></div>
-        <p class="text-white font-medium">Loading {{ streamFormat.type.toUpperCase() }} stream...</p>
-        <p v-if="streamFormat.type === 'mpegts'" class="text-gray-400 text-sm mt-1">MPEG-TS Format Detected</p>
+        <p class="text-white font-medium">Loading {{ streamFormat.name }} video...</p>
+        <p class="text-gray-400 text-sm mt-1">{{ streamFormat.mimeType }}</p>
       </div>
     </div>
 
@@ -172,19 +172,75 @@ const MAX_RETRIES = 3;
 let loadingTimeout: NodeJS.Timeout | null = null;
 let stopWatcher: (() => void) | null = null;
 
-// Detect stream format from URL
+// Detect video format from URL - supports all IPTV formats
 const streamFormat = computed(() => {
-  if (!sourceUrl.value) return { type: 'hls', mimeType: 'application/x-mpegURL' };
+  if (!sourceUrl.value) return { type: 'hls', mimeType: 'application/x-mpegURL', name: 'HLS' };
 
   const url = sourceUrl.value.toLowerCase();
 
-  // Check for .ts extension or ext=.ts parameter (MPEG-TS)
-  if (url.includes('.ts') || url.includes('ext=.ts') || url.includes('ext=ts')) {
-    return { type: 'mpegts', mimeType: 'video/mp2t' };
+  // Extract extension from URL (handle query parameters)
+  const urlWithoutQuery = url.split('?')[0];
+  const extension = urlWithoutQuery.split('.').pop() || '';
+
+  // Also check ext= parameter
+  const extMatch = url.match(/ext=\.?(\w+)/);
+  const extParam = extMatch ? extMatch[1] : '';
+
+  const finalExt = extParam || extension;
+
+  // HLS - HTTP Live Streaming (.m3u8)
+  if (finalExt === 'm3u8' || url.includes('.m3u8')) {
+    return { type: 'hls', mimeType: 'application/x-mpegURL', name: 'HLS' };
   }
 
-  // Default to HLS (.m3u8)
-  return { type: 'hls', mimeType: 'application/x-mpegURL' };
+  // MPEG-TS - Transport Stream (.ts)
+  if (finalExt === 'ts' || url.includes('ext=.ts')) {
+    return { type: 'mpegts', mimeType: 'video/mp2t', name: 'MPEG-TS' };
+  }
+
+  // MP4 - Most common for VOD/Movies (.mp4, .m4v)
+  if (finalExt === 'mp4' || finalExt === 'm4v') {
+    return { type: 'mp4', mimeType: 'video/mp4', name: 'MP4' };
+  }
+
+  // MKV - Matroska (common for series/movies) (.mkv)
+  if (finalExt === 'mkv') {
+    return { type: 'mkv', mimeType: 'video/x-matroska', name: 'MKV' };
+  }
+
+  // AVI - Older format but still used (.avi)
+  if (finalExt === 'avi') {
+    return { type: 'avi', mimeType: 'video/x-msvideo', name: 'AVI' };
+  }
+
+  // WebM - Web video format (.webm)
+  if (finalExt === 'webm') {
+    return { type: 'webm', mimeType: 'video/webm', name: 'WebM' };
+  }
+
+  // MOV - QuickTime (.mov)
+  if (finalExt === 'mov') {
+    return { type: 'mov', mimeType: 'video/quicktime', name: 'MOV' };
+  }
+
+  // FLV - Flash Video (rare but exists) (.flv)
+  if (finalExt === 'flv') {
+    return { type: 'flv', mimeType: 'video/x-flv', name: 'FLV' };
+  }
+
+  // OGG/OGV - Ogg Video (.ogv, .ogg)
+  if (finalExt === 'ogv' || finalExt === 'ogg') {
+    return { type: 'ogg', mimeType: 'video/ogg', name: 'OGG' };
+  }
+
+  // DASH - Dynamic Adaptive Streaming (.mpd)
+  if (finalExt === 'mpd') {
+    return { type: 'dash', mimeType: 'application/dash+xml', name: 'DASH' };
+  }
+
+  // Default to MP4 if unknown (most compatible)
+  console.warn('[VideoPlayer] Unknown format, defaulting to MP4:', url);
+  return { type: 'mp4', mimeType: 'video/mp4', name: 'MP4' };
 });
 
 const proxyUrl = computed(() => {
@@ -393,7 +449,7 @@ const loadSource = async (url: string) => {
 
       const streamUrl = proxyUrl.value;
       console.log('[VideoPlayer] Loading source:', streamUrl);
-      console.log('[VideoPlayer] Stream format:', streamFormat.value.type, 'MIME:', streamFormat.value.mimeType);
+      console.log('[VideoPlayer] Detected format:', streamFormat.value.name, '(' + streamFormat.value.type + ')', 'MIME:', streamFormat.value.mimeType);
 
       // Optional: Check if stream URL is accessible before loading
       try {
