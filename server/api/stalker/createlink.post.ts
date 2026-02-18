@@ -24,9 +24,7 @@ export default defineEventHandler(async (event) => {
     if (cmd.includes("stream=")) {
       console.log("🎬 Stream URL detected in cmd");
       cmd = cmd.replace(/ffmpeg/gi, "");
-      if (cmd.includes("extension=")) {
-        cmd = cmd.replace(/extension=ts/gi, "extension=m3u8");
-      }
+      // Let .ts streams through naturally - VideoPlayer will handle fallback
       return cmd;
     }
 
@@ -137,13 +135,8 @@ export default defineEventHandler(async (event) => {
       return sourceLink.replace(/ffmpeg/gi, "");
     }
 
-    // ---- FORCE HLS (.m3u8) ------------------------------------
-    // 1) If the command contains an extension param, flip it
-    if (sourceLink.includes("extension=")) {
-      sourceLink = sourceLink.replace(/extension=ts/gi, "extension=m3u8");
-    }
-    
-    // remove ffmpeg from the source link
+    // Remove ffmpeg from the source link
+    // Keep original format - VideoPlayer will fallback to .m3u8 if .ts fails
     sourceLink = sourceLink.replace(/ffmpeg/gi, "");
 
     console.log("✅ Final source link:", sourceLink);

@@ -171,6 +171,22 @@ let retryCount = 0;
 const MAX_RETRIES = 3;
 let loadingTimeout: NodeJS.Timeout | null = null;
 let stopWatcher: (() => void) | null = null;
+let hasTriedM3u8Fallback = false; // Track if we've tried .m3u8 fallback for .ts
+
+// Helper function to convert .ts URL to .m3u8 for fallback
+const convertTsToM3u8 = (url: string): string => {
+  let converted = url;
+
+  // Replace extension in URL path
+  converted = converted.replace(/\.ts$/i, '.m3u8');
+
+  // Replace ext= parameter
+  converted = converted.replace(/ext=\.?ts/gi, 'ext=.m3u8');
+  converted = converted.replace(/extension=\.?ts/gi, 'extension=.m3u8');
+
+  console.log('[VideoPlayer] Converted URL:', { original: url, converted });
+  return converted;
+};
 
 // Detect video format from URL - supports all IPTV formats
 const streamFormat = computed(() => {
@@ -345,14 +361,42 @@ const handleError = async (event: any) => {
 
   // Get appropriate error message
   errorMessage = getErrorMessage(errorCode || 0, httpStatus);
-  
+
   console.error(`[VideoPlayer] Playback error:`, {
     errorCode,
     httpStatus,
     message: errorMessage,
-    url: proxyUrl.value
+    url: proxyUrl.value,
+    format: streamFormat.value.type
   });
-  
+
+  // Check if this is a .ts stream that failed and we haven't tried .m3u8 fallback yet
+  if (streamFormat.value.type === 'mpegts' && !hasTriedM3u8Fallback) {
+    console.log('[VideoPlayer] .ts stream failed, trying .m3u8 fallback...');
+    hasTriedM3u8Fallback = true;
+
+    // Convert .ts URL to .m3u8 and retry
+    const fallbackUrl = convertTsToM3u8(sourceUrl.value);
+
+    toast.add({
+      title: "Trying Alternative Format",
+      description: "MPEG-TS failed, retrying as HLS...",
+      color: "warning",
+      timeout: 3000,
+    });
+
+    // Force update sourceUrl to trigger retry with .m3u8
+    if (providerType.value === "stalker") {
+      stalker.sourceUrl = fallbackUrl;
+    } else if (providerType.value === "xtream") {
+      xtream.sourceUrl = fallbackUrl;
+    }
+
+    isLoading.value = false;
+    clearLoadingTimeout();
+    return; // Exit early, watcher will trigger reload with new URL
+  }
+
   // Show user-friendly error with retry option for temporary errors
   const isRetryableError = httpStatus && [429, 500, 502, 503, 504].includes(httpStatus);
   
@@ -668,6 +712,11 @@ onMounted(async () => {
 
     setLoadingWithTimeout(60000); // 60 seconds for IPTV streams
     retryCount = 0;
+
+    // Reset fallback flag when source changes (but not if it's the fallback itself)
+    if (!newUrl.includes('.m3u8') || !oldUrl.includes('.ts')) {
+      hasTriedM3u8Fallback = false;
+    }
 
     if (player && videoElement.value) {
       await loadSource(newUrl);
