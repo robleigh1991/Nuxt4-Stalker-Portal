@@ -9,7 +9,8 @@
         <div
           class="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"
         ></div>
-        <p class="text-white font-medium">Loading stream...</p>
+        <p class="text-white font-medium">Loading {{ streamFormat.type.toUpperCase() }} stream...</p>
+        <p v-if="streamFormat.type === 'mpegts'" class="text-gray-400 text-sm mt-1">MPEG-TS Format Detected</p>
       </div>
     </div>
 
@@ -33,7 +34,7 @@
           <source
             v-if="sourceUrl"
             :src="proxyUrl"
-            type="application/x-mpegURL"
+            :type="streamFormat.mimeType"
           />
         </video>
       </div>
@@ -171,10 +172,25 @@ const MAX_RETRIES = 3;
 let loadingTimeout: NodeJS.Timeout | null = null;
 let stopWatcher: (() => void) | null = null;
 
+// Detect stream format from URL
+const streamFormat = computed(() => {
+  if (!sourceUrl.value) return { type: 'hls', mimeType: 'application/x-mpegURL' };
+
+  const url = sourceUrl.value.toLowerCase();
+
+  // Check for .ts extension or ext=.ts parameter (MPEG-TS)
+  if (url.includes('.ts') || url.includes('ext=.ts') || url.includes('ext=ts')) {
+    return { type: 'mpegts', mimeType: 'video/mp2t' };
+  }
+
+  // Default to HLS (.m3u8)
+  return { type: 'hls', mimeType: 'application/x-mpegURL' };
+});
+
 const proxyUrl = computed(() => {
   if (!sourceUrl.value) return "";
   let url = `https://nuxt4-stalker-portal.onrender.com/api/stream-proxy?url=${encodeURIComponent(sourceUrl.value)}`;
-  
+
   if (providerType.value === 'stalker') {
     if (stalker.portalurl) url += `&portalurl=${encodeURIComponent(stalker.portalurl)}`;
     if (stalker.macaddress) url += `&macaddress=${encodeURIComponent(stalker.macaddress)}`;
@@ -182,7 +198,7 @@ const proxyUrl = computed(() => {
   } else if (providerType.value === 'xtream') {
     // Xtream usually doesn't need special headers for the stream itself beyond the URL
   }
-  
+
  return url;
 });
 
@@ -377,6 +393,7 @@ const loadSource = async (url: string) => {
 
       const streamUrl = proxyUrl.value;
       console.log('[VideoPlayer] Loading source:', streamUrl);
+      console.log('[VideoPlayer] Stream format:', streamFormat.value.type, 'MIME:', streamFormat.value.mimeType);
 
       // Optional: Check if stream URL is accessible before loading
       try {
@@ -408,10 +425,10 @@ const loadSource = async (url: string) => {
       existingSources?.forEach((src) => src.remove());
       videoElement.value?.removeAttribute("src");
 
-      // Set new source
+      // Set new source with correct MIME type
       const newSource = document.createElement("source");
       newSource.src = streamUrl;
-      newSource.type = "application/x-mpegURL";
+      newSource.type = streamFormat.value.mimeType;
       videoElement.value?.appendChild(newSource);
 
       player.source = {
@@ -419,7 +436,7 @@ const loadSource = async (url: string) => {
         sources: [
           {
             src: streamUrl,
-            type: "application/x-mpegURL",
+            type: streamFormat.value.mimeType,
           },
         ],
       };
