@@ -1,28 +1,31 @@
 <template>
   <div>
     <div class="mb-8">
-      <UInput 
+      <UInput
         v-model="search"
         icon="i-lucide-search"
         size="xl"
         placeholder="Search channels..."
         block
         variant="subtle"
-        :ui="{ 
+        :ui="{
           base: 'bg-[#141414] border-transparent focus:border-red-600',
-          leadingIcon: 'text-gray-500'
+          leadingIcon: 'text-gray-500',
         }"
       />
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+    <!-- Loading State - Only show when NO data loaded yet -->
+    <div
+      v-if="isLoading && filteredLiveItems.length === 0"
+      class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+    >
       <SkeletonsCardSkeleton v-for="i in 12" :key="i" />
     </div>
 
     <!-- Empty State -->
     <EmptyState
-      v-else-if="filteredLiveItems.length === 0 && !search"
+      v-else-if="!isLoading && filteredLiveItems.length === 0 && !search"
       icon="i-lucide-tv"
       title="No Channels Available"
       description="No live channels are available in this category."
@@ -30,7 +33,7 @@
 
     <!-- No Search Results -->
     <EmptyState
-      v-else-if="filteredLiveItems.length === 0 && search"
+      v-else-if="!isLoading && filteredLiveItems.length === 0 && search"
       icon="i-lucide-search-x"
       title="No Results Found"
       :description="`No channels found matching '${search}'`"
@@ -39,21 +42,59 @@
       @action="search = ''"
     />
 
-    <!-- Content Grid -->
+    <!-- Virtual Scrolling Content Grid - Show as soon as data starts loading -->
     <div
       v-else
-      class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+      ref="scrollContainer"
+      class="h-screen overflow-auto relative"
+      @scroll="handleScroll"
     >
-      <div v-for="item in filteredLiveItems" :key="item?.stream_id || item?.id">
-        <Card
-          :item="item"
-          :selectedItem="selectedItem"
-          :name="item.name"
-          :image="getChannelImage(item)"
-          :contentType="'live'"
-          :providerType="providerType"
-          @click="setSelectedLive(item)"
-        />
+      <!-- Loading indicator overlay while more data loads -->
+      <div
+        v-if="isLoading"
+        class="absolute top-4 right-4 z-10 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-2"
+      >
+        <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        Loading more...
+      </div>
+
+      <!-- Virtual scroll container -->
+      <div
+        :style="{
+          height: `${totalHeight}px`,
+          position: 'relative',
+        }"
+      >
+        <!-- Only render visible rows -->
+        <div
+          v-for="row in visibleRows"
+          :key="row.index"
+          :style="{
+            position: 'absolute',
+            top: `${row.top}px`,
+            left: 0,
+            width: '100%',
+          }"
+        >
+          <div
+            class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pb-8"
+          >
+            <div
+              v-for="(item, idx) in getRowItems(row.index)"
+              :key="item?.stream_id || item?.id || idx"
+            >
+              <Card
+                :item="item"
+                :selectedItem="selectedItem"
+                :name="item.name"
+                :image="getChannelImage(item)"
+                :contentType="'live'"
+                :providerType="providerType"
+                @click="setSelectedLive(item)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -65,8 +106,11 @@ const xtream = useXtreamStore();
 
 const selectedItem = ref("");
 const search = ref("");
+
 const isLoading = computed(() => {
-  return providerType.value === 'stalker' ? stalker.isLoading : xtream.isLoading;
+  return providerType.value === "stalker"
+    ? stalker.isLoading
+    : xtream.isLoading;
 });
 
 // Determine which provider is active
@@ -105,9 +149,22 @@ const filteredLiveItems = computed(() => {
 
   const searchTerm = search.value.toLowerCase().trim();
   return liveItems.value.filter((item: any) =>
-    item.name?.toLowerCase().includes(searchTerm)
+    item.name?.toLowerCase().includes(searchTerm),
   );
 });
+
+// Virtual scrolling configuration
+const ITEMS_PER_ROW = 6; // xl:grid-cols-6
+const ROW_HEIGHT = 420; // Approximate height of each card row (aspect-ratio 2:3 + spacing)
+
+// Use custom virtual scrolling
+const { scrollContainer, totalHeight, visibleRows, getRowItems, handleScroll } =
+  useCustomVirtualScroll({
+    items: filteredLiveItems,
+    itemsPerRow: ITEMS_PER_ROW,
+    rowHeight: ROW_HEIGHT,
+    overscan: 2,
+  });
 
 // Get channel image based on provider
 function getChannelImage(item: any): string {
@@ -132,14 +189,51 @@ async function setSelectedLive(item: any) {
     }
   } else if (providerType.value === "xtream") {
     await xtream.playLiveStream(item);
-    // Note: You'll need to add modalOpen to xtream store or handle differently
   }
 }
 
 // Watch for category changes
 watch(selectedCategory, () => {
   search.value = "";
+  // Scroll to top when category changes
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0;
+  }
+});
+
+// Watch for search changes
+watch(search, () => {
+  // Scroll to top when search changes
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0;
+  }
 });
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.5);
+  border-radius: 5px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.7);
+}
+
+/* Smooth scrolling behavior */
+[ref="scrollContainer"] {
+  scroll-behavior: smooth;
+}
+</style>

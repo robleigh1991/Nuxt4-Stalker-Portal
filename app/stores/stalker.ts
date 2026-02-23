@@ -214,34 +214,37 @@ export const useStalkerStore = defineStore("stalker", {
         const totalItems = firstPage.total_items || 0;
         const totalPages = Math.ceil(totalItems / 14);
 
-        // Fetch all pages in parallel (max 5 at a time to avoid overwhelming)
+        // Fetch pages and add items IMMEDIATELY as each request completes
         const batchSize = 5;
         for (let i = 1; i <= totalPages; i += batchSize) {
           this.progress = Math.floor((i / totalPages) * 100);
           const pagePromises = [];
           for (let j = i; j < Math.min(i + batchSize, totalPages + 1); j++) {
-            pagePromises.push(
-              $fetch("/api/stalker/orderlist", {
-                method: "POST",
-                body: {
-                  portalurl: this.portalurl,
-                  macaddress: this.macaddress,
-                  token: this.token,
-                  media_type: "itv",
-                  media_action: "get_ordered_list",
-                  genre_id: genreId,
-                  page: j,
-                },
-              })
-            );
+            // Process each promise individually as it resolves
+            const pagePromise = $fetch("/api/stalker/orderlist", {
+              method: "POST",
+              body: {
+                portalurl: this.portalurl,
+                macaddress: this.macaddress,
+                token: this.token,
+                media_type: "itv",
+                media_action: "get_ordered_list",
+                genre_id: genreId,
+                page: j,
+              },
+            }).then((result: any) => {
+              // Add items IMMEDIATELY when this request completes
+              if (result.data) {
+                this.liveItems[cacheKey].push(...result.data);
+                console.log(`[Stalker] Loaded page ${j}/${totalPages} - ${result.data.length} items added (Total: ${this.liveItems[cacheKey].length})`);
+              }
+              return result;
+            });
+            pagePromises.push(pagePromise);
           }
 
-          const results = await Promise.all(pagePromises);
-          results.forEach((result: any) => {
-            if (result.data) {
-              this.liveItems[cacheKey].push(...result.data);
-            }
-          });
+          // Wait for this batch to complete before starting next batch
+          await Promise.all(pagePromises);
         }
 
         this.progress = 0;
@@ -308,28 +311,28 @@ export const useStalkerStore = defineStore("stalker", {
           this.progress = Math.floor((i / totalPages) * 100);
           const pagePromises = [];
           for (let j = i; j < Math.min(i + batchSize, totalPages + 1); j++) {
-            pagePromises.push(
-              $fetch("/api/stalker/orderlist", {
-                method: "POST",
-                body: {
-                  portalurl: this.portalurl,
-                  macaddress: this.macaddress,
-                  token: this.token,
-                  media_type: "vod",
-                  media_action: "get_ordered_list",
-                  category_id: categoryId,
-                  page: j,
-                },
-              })
-            );
+            const pagePromise = $fetch("/api/stalker/orderlist", {
+              method: "POST",
+              body: {
+                portalurl: this.portalurl,
+                macaddress: this.macaddress,
+                token: this.token,
+                media_type: "vod",
+                media_action: "get_ordered_list",
+                category_id: categoryId,
+                page: j,
+              },
+            }).then((result: any) => {
+              if (result.data) {
+                this.moviesItems[cacheKey].push(...result.data);
+                console.log(`[Stalker] Loaded movies page ${j}/${totalPages} - ${result.data.length} items (Total: ${this.moviesItems[cacheKey].length})`);
+              }
+              return result;
+            });
+            pagePromises.push(pagePromise);
           }
 
-          const results = await Promise.all(pagePromises);
-          results.forEach((result: any) => {
-            if (result.data) {
-              this.moviesItems[cacheKey].push(...result.data);
-            }
-          });
+          await Promise.all(pagePromises);
         }
 
         this.progress = 0;
@@ -396,28 +399,28 @@ export const useStalkerStore = defineStore("stalker", {
           this.progress = Math.floor((i / totalPages) * 100);
           const pagePromises = [];
           for (let j = i; j < Math.min(i + batchSize, totalPages + 1); j++) {
-            pagePromises.push(
-              $fetch("/api/stalker/orderlist", {
-                method: "POST",
-                body: {
-                  portalurl: this.portalurl,
-                  macaddress: this.macaddress,
-                  token: this.token,
-                  media_type: "series",
-                  media_action: "get_ordered_list",
-                  category_id: categoryId,
-                  page: j,
-                },
-              })
-            );
+            const pagePromise = $fetch("/api/stalker/orderlist", {
+              method: "POST",
+              body: {
+                portalurl: this.portalurl,
+                macaddress: this.macaddress,
+                token: this.token,
+                media_type: "series",
+                media_action: "get_ordered_list",
+                category_id: categoryId,
+                page: j,
+              },
+            }).then((result: any) => {
+              if (result.data) {
+                this.seriesItems[cacheKey].push(...result.data);
+                console.log(`[Stalker] Loaded series page ${j}/${totalPages} - ${result.data.length} items (Total: ${this.seriesItems[cacheKey].length})`);
+              }
+              return result;
+            });
+            pagePromises.push(pagePromise);
           }
 
-          const results = await Promise.all(pagePromises);
-          results.forEach((result: any) => {
-            if (result.data) {
-              this.seriesItems[cacheKey].push(...result.data);
-            }
-          });
+          await Promise.all(pagePromises);
         }
 
         this.progress = 0;

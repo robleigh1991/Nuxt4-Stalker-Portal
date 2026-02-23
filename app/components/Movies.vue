@@ -1,30 +1,33 @@
 <template>
   <div>
     <div class="flex w-full flex-row gap-4">
-    <div class="mb-8 flex-1">
-      <UInput 
-        v-model="search"
-        icon="i-lucide-search"
-        size="xl"
-        placeholder="Search movies..."
-        block
-        variant="subtle"
-        :ui="{ 
-          base: 'bg-[#141414] border-transparent focus:border-red-600',
-          leadingIcon: 'text-gray-500'
-        }"
-      />
-    </div>
+      <div class="mb-8 flex-1">
+        <UInput
+          v-model="search"
+          icon="i-lucide-search"
+          size="xl"
+          placeholder="Search movies..."
+          block
+          variant="subtle"
+          :ui="{
+            base: 'bg-[#141414] border-transparent focus:border-red-600',
+            leadingIcon: 'text-gray-500',
+          }"
+        />
+      </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isCategoryLoading" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+    <!-- Loading State - Only show when NO data loaded yet -->
+    <div
+      v-if="isCategoryLoading && filteredMoviesItems.length === 0"
+      class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+    >
       <SkeletonsCardSkeleton v-for="i in 12" :key="i" />
     </div>
 
     <!-- Empty State -->
     <EmptyState
-      v-else-if="filteredMoviesItems.length === 0 && !search"
+      v-else-if="!isCategoryLoading && filteredMoviesItems.length === 0 && !search"
       icon="i-lucide-film"
       title="No Movies Available"
       description="No movies are available in this category."
@@ -32,7 +35,7 @@
 
     <!-- No Search Results -->
     <EmptyState
-      v-else-if="filteredMoviesItems.length === 0 && search"
+      v-else-if="!isCategoryLoading && filteredMoviesItems.length === 0 && search"
       icon="i-lucide-search-x"
       title="No Results Found"
       :description="`No movies found matching '${search}'`"
@@ -41,22 +44,60 @@
       @action="search = ''"
     />
 
-    <!-- Content Grid -->
+    <!-- Virtual Scrolling Content Grid - Show as soon as data starts loading -->
     <div
       v-else
-      class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+      ref="scrollContainer"
+      class="h-screen overflow-auto relative"
+      @scroll="handleScroll"
     >
-      <div v-for="item in filteredMoviesItems" :key="item?.stream_id || item?.id">
-        <Card
-          :item="item"
-          :selectedItem="selectedItem"
-          :name="item.name"
-          :image="getMovieImage(item)"
-          :loading="isLoading && selectedItem?.id === item?.id"
-          :contentType="'movies'"
-          :providerType="providerType"
-          @click="setSelectedMovie(item)"
-        />
+      <!-- Loading indicator overlay while more data loads -->
+      <div
+        v-if="isCategoryLoading"
+        class="absolute top-4 right-4 z-10 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-2"
+      >
+        <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        Loading more...
+      </div>
+
+      <!-- Virtual scroll container -->
+      <div
+        :style="{
+          height: `${totalHeight}px`,
+          position: 'relative',
+        }"
+      >
+        <!-- Only render visible rows -->
+        <div
+          v-for="row in visibleRows"
+          :key="row.index"
+          :style="{
+            position: 'absolute',
+            top: `${row.top}px`,
+            left: 0,
+            width: '100%',
+          }"
+        >
+          <div
+            class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pb-4"
+          >
+            <div
+              v-for="(item, idx) in getRowItems(row.index)"
+              :key="item?.stream_id || item?.id || idx"
+            >
+              <Card
+                :item="item"
+                :selectedItem="selectedItem"
+                :name="item.name"
+                :image="getMovieImage(item)"
+                :loading="isLoading && selectedItem?.id === item?.id"
+                :contentType="'movies'"
+                :providerType="providerType"
+                @click="setSelectedMovie(item)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -70,16 +111,15 @@ const toast = useToast();
 const selectedItem = ref<any>(null);
 const search = ref("");
 const isLoading = ref(false);
+
 const isCategoryLoading = computed(() => {
-  return providerType.value === 'stalker' ? stalker.isLoading : xtream.isLoading;
+  return providerType.value === "stalker"
+    ? stalker.isLoading
+    : xtream.isLoading;
 });
 
 // Abort controller for canceling previous requests
 let abortController: AbortController | null = null;
-
-function onScroll() {
-  console.log("fssfsdf");
-}
 
 // Determine which provider is active
 const providerType = computed(() => {
@@ -117,9 +157,22 @@ const filteredMoviesItems = computed(() => {
 
   const searchTerm = search.value.toLowerCase().trim();
   return moviesItems.value.filter((item: any) =>
-    item.name?.toLowerCase().includes(searchTerm)
+    item.name?.toLowerCase().includes(searchTerm),
   );
 });
+
+// Virtual scrolling configuration
+const ITEMS_PER_ROW = 6; // xl:grid-cols-6
+const ROW_HEIGHT = 400; // Approximate height of each movie card row (increased for proper spacing)
+
+// Use custom virtual scrolling
+const { scrollContainer, totalHeight, visibleRows, getRowItems, handleScroll } =
+  useCustomVirtualScroll({
+    items: filteredMoviesItems,
+    itemsPerRow: ITEMS_PER_ROW,
+    rowHeight: ROW_HEIGHT,
+    overscan: 2,
+  });
 
 // Get movie image based on provider
 function getMovieImage(item: any): string {
@@ -167,11 +220,11 @@ async function setSelectedMovie(item: any) {
       }
 
       stalker.currentMovie = item;
-      
+
       // Call createLink with timeout protection
       const createLinkPromise = stalker.createLink(item.cmd, "vod");
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timeout")), 15000)
+        setTimeout(() => reject(new Error("Request timeout")), 15000),
       );
 
       await Promise.race([createLinkPromise, timeoutPromise]);
@@ -180,7 +233,6 @@ async function setSelectedMovie(item: any) {
       if (!stalker.modalOpen) {
         stalker.modalOpen = true;
       }
-
     } else if (providerType.value === "xtream") {
       // Validate stream exists
       if (!item.stream_id && !item.id) {
@@ -194,12 +246,11 @@ async function setSelectedMovie(item: any) {
         xtream.modalOpen = true;
       }
     }
-
   } catch (error: any) {
     console.error("Failed to load movie:", error);
 
     // Don't show error if request was aborted
-    if (error.name === 'AbortError') {
+    if (error.name === "AbortError") {
       console.log("Request was aborted");
       return;
     }
@@ -218,7 +269,6 @@ async function setSelectedMovie(item: any) {
       color: "error",
       timeout: 5000,
     });
-
   } finally {
     isLoading.value = false;
     abortController = null;
@@ -229,11 +279,24 @@ async function setSelectedMovie(item: any) {
 watch(selectedCategory, () => {
   search.value = "";
   selectedItem.value = null;
-  
+
   // Cancel any pending requests when category changes
   if (abortController) {
     abortController.abort();
     abortController = null;
+  }
+
+  // Scroll to top when category changes
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0;
+  }
+});
+
+// Watch for search changes
+watch(search, () => {
+  // Scroll to top when search changes
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0;
   }
 });
 
@@ -245,4 +308,30 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.5);
+  border-radius: 5px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.7);
+}
+
+/* Smooth scrolling behavior */
+[ref="scrollContainer"] {
+  scroll-behavior: smooth;
+}
+</style>

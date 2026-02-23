@@ -28,6 +28,12 @@ export default defineNuxtConfig({
 
   routeRules: {
     "/": { prerender: false },
+    // Aggressive image caching rules
+    "/_ipx/**": {
+      headers: {
+        "Cache-Control": "public, max-age=31536000, immutable", // 1 year cache
+      },
+    },
   },
 
   runtimeConfig: {
@@ -41,10 +47,10 @@ export default defineNuxtConfig({
       sessionTimeout: Number(process.env.NUXT_PUBLIC_SESSION_TIMEOUT) || 3600000,
       enableFavorites: process.env.NUXT_PUBLIC_ENABLE_FAVORITES !== 'false',
       debugMode: process.env.NUXT_PUBLIC_DEBUG_MODE === 'true',
-      // Memory optimization
-      maxCachedCategories: Number(process.env.NUXT_PUBLIC_MAX_CACHED_CATEGORIES) || 5,
-      maxItemsPerCategory: Number(process.env.NUXT_PUBLIC_MAX_ITEMS_PER_CATEGORY) || 200,
-      cacheTimeout: Number(process.env.NUXT_PUBLIC_CACHE_TIMEOUT) || 300000,
+      // Memory optimization (reduced for better memory management)
+      maxCachedCategories: Number(process.env.NUXT_PUBLIC_MAX_CACHED_CATEGORIES) || 3,
+      maxItemsPerCategory: Number(process.env.NUXT_PUBLIC_MAX_ITEMS_PER_CATEGORY) || 150,
+      cacheTimeout: Number(process.env.NUXT_PUBLIC_CACHE_TIMEOUT) || 180000, // 3 minutes
     },
   },
 
@@ -76,7 +82,7 @@ export default defineNuxtConfig({
 
   // Image optimization for memory reduction
   image: {
-    quality: 70,
+    quality: 60, // Reduced from 70 for better memory usage
     format: ['webp'],
     screens: {
       xs: 320,
@@ -84,6 +90,27 @@ export default defineNuxtConfig({
       md: 768,
       lg: 1024,
       xl: 1280,
+    },
+    densities: [1, 2], // Limit to 1x and 2x density
+    presets: {
+      card: {
+        modifiers: {
+          format: 'webp',
+          quality: 60,
+          width: 300,
+          height: 450,
+        },
+      },
+    },
+    // IPX (Nuxt Image) caching configuration
+    ipx: {
+      maxAge: 31536000, // Cache processed images for 1 year
+      dir: './.cache/ipx', // Cache directory
+    },
+    // Enable browser-side caching
+    domains: [], // Allow all domains for external images
+    alias: {
+      // If you use a CDN, add it here
     },
   },
 });

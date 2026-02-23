@@ -22,8 +22,13 @@
         v-if="image"
         :src="image"
         :alt="name"
+        :width="300"
+        :height="450"
+        quality="60"
+        format="webp"
         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         loading="lazy"
+        decoding="async"
         @error="handleImageError"
       />
       <img

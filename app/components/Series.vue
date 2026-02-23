@@ -1,31 +1,84 @@
 <template>
+  <div>
     <div class="mb-8">
-      <UInput 
+      <UInput
         v-model="search"
         icon="i-lucide-search"
         size="xl"
         placeholder="Search series..."
         block
         variant="subtle"
-        :ui="{ 
+        :ui="{
           base: 'bg-[#141414] border-transparent focus:border-red-600',
-          leadingIcon: 'text-gray-500'
+          leadingIcon: 'text-gray-500',
         }"
       />
     </div>
-  <div
-    class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
-  >
-    <div v-for="item in filteredSeriesItems" :key="item?.series_id || item?.id">
-      <Card
-        :item="item"
-        :selectedItem="selectedItem"
-        :name="item.name"
-        :image="getSeriesImage(item)"
-        :contentType="'series'"
-        :providerType="providerType"
-        @click="setSelectedSeries(item)"
-      />
+
+    <!-- Empty State -->
+    <EmptyState
+      v-if="filteredSeriesItems.length === 0 && !search"
+      icon="i-lucide-monitor-play"
+      title="No Series Available"
+      description="No series are available in this category."
+    />
+
+    <!-- No Search Results -->
+    <EmptyState
+      v-else-if="filteredSeriesItems.length === 0 && search"
+      icon="i-lucide-search-x"
+      title="No Results Found"
+      :description="`No series found matching '${search}'`"
+      actionLabel="Clear Search"
+      actionIcon="i-lucide-x"
+      @action="search = ''"
+    />
+
+    <!-- Virtual Scrolling Content Grid -->
+    <div
+      v-else
+      ref="scrollContainer"
+      class="h-screen overflow-auto relative"
+      @scroll="handleScroll"
+    >
+      <!-- Virtual scroll container -->
+      <div
+        :style="{
+          height: `${totalHeight}px`,
+          position: 'relative',
+        }"
+      >
+        <!-- Only render visible rows -->
+        <div
+          v-for="row in visibleRows"
+          :key="row.index"
+          :style="{
+            position: 'absolute',
+            top: `${row.top}px`,
+            left: 0,
+            width: '100%',
+          }"
+        >
+          <div
+            class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 pb-4"
+          >
+            <div
+              v-for="(item, idx) in getRowItems(row.index)"
+              :key="item?.series_id || item?.id || idx"
+            >
+              <Card
+                :item="item"
+                :selectedItem="selectedItem"
+                :name="item.name"
+                :image="getSeriesImage(item)"
+                :contentType="'series'"
+                :providerType="providerType"
+                @click="setSelectedSeries(item)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -73,9 +126,22 @@ const filteredSeriesItems = computed(() => {
 
   const searchTerm = search.value.toLowerCase().trim();
   return seriesItems.value.filter((item: any) =>
-    item.name?.toLowerCase().includes(searchTerm)
+    item.name?.toLowerCase().includes(searchTerm),
   );
 });
+
+// Virtual scrolling configuration
+const ITEMS_PER_ROW = 6; // xl:grid-cols-6
+const ROW_HEIGHT = 400; // Approximate height of each series card row (increased for proper spacing)
+
+// Use custom virtual scrolling
+const { scrollContainer, totalHeight, visibleRows, getRowItems, handleScroll } =
+  useCustomVirtualScroll({
+    items: filteredSeriesItems,
+    itemsPerRow: ITEMS_PER_ROW,
+    rowHeight: ROW_HEIGHT,
+    overscan: 2,
+  });
 
 // Get series image based on provider
 function getSeriesImage(item: any): string {
@@ -114,7 +180,45 @@ async function setSelectedSeries(item: any) {
 // Watch for category changes
 watch(selectedCategory, () => {
   search.value = "";
+  // Scroll to top when category changes
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0;
+  }
+});
+
+// Watch for search changes
+watch(search, () => {
+  // Scroll to top when search changes
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = 0;
+  }
 });
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.5);
+  border-radius: 5px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.7);
+}
+
+/* Smooth scrolling behavior */
+[ref="scrollContainer"] {
+  scroll-behavior: smooth;
+}
+</style>

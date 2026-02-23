@@ -107,22 +107,25 @@
       </div>
     </div>
 
+  <!-- Memory Monitor -->
+  <MemoryMonitor />
+
   <!-- Player Modal (Fullscreen overlay) -->
   <UModal v-model:open="modalOpen" fullscreen :close="false">
     <template #content>
       <div class="w-full h-full bg-black flex overflow-hidden relative">
         <!-- Player Exit Button (Moved to top-left to avoid sidebar conflict) -->
-        <UButton 
+        <UButton
           @click="modalOpen = false"
           icon="i-lucide-x"
           size="xl"
           color="error"
-          variant="solid" 
+          variant="solid"
           class="absolute top-8 left-8 z-[10000] rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all"
         />
 
-         <VideoPlayer class="flex-1" />
-         
+         <VideoPlayer v-if="modalOpen" :key="playerKey" class="flex-1" />
+
          <!-- Sidebars Wrapper (Ensuring clear width and top-level interaction) -->
          <div class="h-full shrink-0 relative z-[200] border-l border-white/10" :class="selectedTab === 'live-tv' ? 'w-80' : 'w-96'">
            <ChannelsSidebar v-if="selectedTab === 'live-tv'" class="w-full h-full" />
@@ -145,11 +148,13 @@ const xtream = useXtreamStore();
 const toast = useToast();
 const { setupCommonShortcuts } = useCommonShortcuts();
 const favorites = useFavorites();
+const { startAutoCleanup, stopAutoCleanup } = useMemoryCleanup();
 
 const selectedTab = ref("live-tv");
 const selectedCategory = ref<any>(null);
 const search = ref("");
 const searchInputRef = ref<HTMLElement | null>(null);
+const playerKey = ref(0); // Key to force VideoPlayer recreation
 
 // Favorites
 const favoritesList = computed(() => favorites.all.value);
@@ -199,13 +204,61 @@ onMounted(async () => {
     onEscape: () => {
       // Clear search
       search.value = "";
-      
+
       // Close modal if open
       if (modalOpen.value) {
         modalOpen.value = false;
       }
     },
   });
+
+  // Start automatic memory cleanup
+  startAutoCleanup();
+
+  // Auto-select first live-tv category on mount
+  if (filteredLiveCategories.value.length > 0) {
+    await setSelectedCategory(filteredLiveCategories.value[0]);
+  }
+});
+
+onUnmounted(() => {
+  // Stop automatic memory cleanup
+  stopAutoCleanup();
+});
+
+// Watch for modal close and force cleanup
+watch(modalOpen, (isOpen, wasOpen) => {
+  if (wasOpen && !isOpen) {
+    // Modal was closed
+    console.log('[Dashboard] Modal closed - forcing video cleanup');
+
+    // Clear source URLs to stop any playing streams
+    if (providerType.value === "stalker") {
+      stalker.sourceUrl = null;
+      stalker.currentChannel = null;
+      stalker.currentMovie = null;
+      stalker.currentSeries = null;
+    } else if (providerType.value === "xtream") {
+      xtream.sourceUrl = null;
+      xtream.currentStream = null;
+    }
+
+    // Increment key to force VideoPlayer recreation on next open
+    playerKey.value++;
+
+    // Find and stop any video/audio elements that might be playing
+    setTimeout(() => {
+      const videos = document.querySelectorAll('video, audio');
+      videos.forEach((media) => {
+        if (!media.paused) {
+          console.log('[Dashboard] Stopping orphaned media element');
+          media.pause();
+          media.src = '';
+          media.load();
+        }
+      });
+    }, 100);
+  }
 });
 
 // Computed properties for categories (unified)
@@ -266,11 +319,11 @@ function setSelectedTab(tab: string) {
   search.value = "";
 
   if (tab === "live-tv" && filteredLiveCategories.value.length > 0) {
-    setSelectedCategory(filteredLiveCategories.value[1]);
+    setSelectedCategory(filteredLiveCategories.value[0]);
   } else if (tab === "movies" && filteredMoviesCategories.value.length > 0) {
-    setSelectedCategory(filteredMoviesCategories.value[1]);
+    setSelectedCategory(filteredMoviesCategories.value[0]);
   } else if (tab === "series" && filteredSeriesCategories.value.length > 0) {
-    setSelectedCategory(filteredSeriesCategories.value[1]);
+    setSelectedCategory(filteredSeriesCategories.value[0]);
   }
 }
 
