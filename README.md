@@ -5,8 +5,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&labelColor=1E3A8A)](https://www.typescriptlang.org/)
 
 > ⚠️ **IMPORTANT LEGAL DISCLAIMER**
-> 
-> This software is provided **FOR EDUCATIONAL AND DEVELOPMENT PURPOSES ONLY**. 
+>
+> This software is provided **FOR EDUCATIONAL AND DEVELOPMENT PURPOSES ONLY**.
 >
 > - This application is a technical demonstration and learning tool for streaming protocols and modern web development practices
 > - Users are **solely responsible** for ensuring they have proper legal rights and licenses for any content they access
@@ -18,7 +18,7 @@
 >
 > **The authors and contributors accept NO liability for misuse of this software.**
 
-A modern, high-performance IPTV streaming application built with Nuxt 3, featuring support for multiple providers (Stalker Portal & Xtream Codes), virtual scrolling for optimal memory usage, and a Netflix-inspired UI.
+A modern, feature-rich IPTV streaming application built with Nuxt 4, featuring support for multiple providers (Stalker Portal & Xtream Codes), multi-account management, advanced channel management, virtual scrolling for optimal performance, and a Netflix-inspired UI.
 
 ## ⚖️ Legal Notice
 
@@ -77,55 +77,122 @@ Users must ensure their use of this software complies with:
 
 ## ✨ Features
 
+### 🔐 Multi-Account Management
+
+- **Unlimited Accounts** - Save and manage multiple IPTV accounts (up to 10)
+- **Quick Account Switching** - Switch between accounts instantly without re-entering credentials
+- **Encrypted Storage** - All credentials stored securely using AES-GCM encryption
+- **Per-Account Data Isolation** - Each account maintains separate favorites, watch history, and preferences
+- **Custom Account Names** - Label accounts for easy identification (e.g., "Home IPTV", "Work Account")
+- **Quick Login** - Access saved accounts directly from the login page
+- **Account Management UI** - Full account management in settings (add, edit, delete, switch)
+
 ### 🎬 Multi-Provider Support
 
 - **Stalker Portal API** - Full support for Stalker middleware
 - **Xtream Codes API** - Compatible with Xtream-based services
-- Seamless switching between providers
+- **Seamless Provider Switching** - Automatically detect and switch between providers
+- **Unified Interface** - Consistent experience across both provider types
 
 ### 📺 Content Management
 
 - **Live TV Channels** - Browse and stream live television
-- **Movies (VOD)** - On-demand movie library
-- **TV Series** - Episode-based content with season management
-- Category-based organization
-- Advanced search functionality
+- **Movies (VOD)** - On-demand movie library with metadata
+- **TV Series** - Episode-based content with season/episode management
+- **Category Organization** - Content organized by categories for easy browsing
+- **Global Search** - Search across all content types with keyboard shortcuts (Ctrl+K / Cmd+K)
+- **Search History** - Quick access to recent searches
+
+### 📋 Channel Management
+
+- **Channel Favorites** - Mark channels as favorites for quick access
+- **Hidden Channels** - Hide unwanted channels from channel lists
+- **Recently Watched** - Track last 20 watched channels
+- **Filter Tabs** - Filter channels by All/Favorites/Recent with live counts
+- **Per-Account Settings** - Each account has its own channel preferences
+- **Bulk Management** - Manage multiple channels efficiently
+
+### 🗂️ Category Management (Bulk Hiding)
+
+- **Bulk Category Hiding** - Hide entire categories at once instead of individual channels
+- **Organized Tabs** - Separate tabs for Live TV, Movies, and Series categories
+- **Category Counts** - See how many items are in each category
+- **Per-Account Storage** - Hidden categories saved separately for each account
+- **Automatic Filtering** - Hidden categories automatically filtered from all views
+- **Quick Show/Hide** - Toggle category visibility with one click
+
+### 📖 Watch History & Continue Watching
+
+- **Automatic Progress Tracking** - Track viewing progress for all VOD content
+- **Continue Watching** - Resume where you left off (5%-90% progress)
+- **Per-Account History** - Each account maintains separate watch history
+- **Progress Bars** - Visual progress indicators on content cards
+- **Auto-Resume** - Automatically resume playback from last position
+- **History Management** - Clear individual items or entire history
+
+### ⭐ Favorites System
+
+- **Multi-Content Favorites** - Favorite channels, movies, and series
+- **Per-Account Favorites** - Each account has its own favorites list
+- **Quick Access** - Dedicated Favorites tab in dashboard
+- **Filter by Type** - View favorites by content type or provider
+- **Import/Export** - Backup and restore favorites
+- **Visual Indicators** - Heart icons show favorite status
 
 ### 🚀 Performance Optimized
 
 - **Virtual Scrolling** - Handle thousands of channels with minimal memory usage (~100-200MB vs 2GB+)
 - **Lazy Image Loading** - Images load only when visible
+- **Image Proxy** - Reliable image loading using images.weserv.nl with WebP conversion
 - **Memory Leak Prevention** - Proper cleanup on component unmount
-- **Responsive Design** - Optimized for all screen sizes
+- **Automatic Memory Management** - Clean up unused data automatically
+- **Optimized Rendering** - Efficient DOM updates and re-renders
 
 ### 🎨 Modern UI/UX
 
-- Netflix-inspired card design with hover effects
-- Smooth animations and transitions
-- Dark mode support
-- Play icon overlays on hover
-- Visual feedback for playing/selected items
-- Shimmer loading animations
-- Interactive card scaling
+- **Netflix-Inspired Design** - Professional card design with hover effects
+- **Smooth Animations** - Fluid transitions and interactions
+- **Dark Mode** - Eye-friendly dark theme throughout
+- **Responsive Design** - Optimized for all screen sizes
+- **Visual Feedback** - Clear indicators for playing/selected items
+- **Loading States** - Shimmer animations and progress indicators
+- **Toast Notifications** - Non-intrusive feedback for user actions
 
-### 🎥 Video Player
+### 🎥 Advanced Video Player
 
 - **Plyr Integration** - Feature-rich HTML5 video player
-- HLS streaming support (m3u8)
-- Quality selection (1080p, 720p, 480p, 360p)
-- Playback speed control
-- Picture-in-Picture mode
-- Fullscreen support
-- Error handling with automatic retry mechanism
-- Loading states and progress indicators
-- Comprehensive error messages
+- **Multiple Format Support** - HLS (m3u8), MPEG-TS (.ts), MP4, and more
+- **Smart Format Detection** - Automatic MIME type detection and fallback
+- **Quality Selection** - Multiple quality options (1080p, 720p, 480p, 360p)
+- **Playback Speed Control** - Adjust playback speed (0.5x - 2x)
+- **Picture-in-Picture** - Built-in PiP support
+- **Fullscreen Support** - True fullscreen experience
+- **Error Handling** - Automatic retry with smart fallbacks
+- **Resume Playback** - Continue from last watched position
+- **Keyboard Shortcuts** - Full keyboard control support
+
+### 🔍 Search Features
+
+- **Global Search Modal** - Keyboard shortcut (Ctrl+K / Cmd+K) to search anywhere
+- **Content Type Filters** - Filter by Live TV, Movies, or Series
+- **Search History** - Remember last 10 searches for quick access
+- **Real-time Results** - Instant search as you type
+- **Grouped Results** - Results organized by content type
+- **Empty States** - Helpful messages when no results found
+
+### ⚙️ Settings & Preferences
+
+- **Playback Settings** - Auto-play next episode toggle
+- **Account Settings** - Manage all saved accounts
+- **Channel Management** - View and manage hidden channels
+- **Category Management** - Bulk hide/show categories
+- **Per-Account Isolation** - All settings saved per account
 
 ## 📋 Prerequisites
 
 - Node.js 18.x or higher
 - pnpm 8.x or higher (recommended) or npm/yarn
 - Modern web browser with HLS support
-- PHP server for proxy (Apache/Nginx with PHP support)
 - **Legal access to content services**
 
 ## 🚀 Quick Start
@@ -134,110 +201,11 @@ Users must ensure their use of this software complies with:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/nuxt-iptv-player.git
-cd nuxt-iptv-player
+git clone https://github.com/robleigh1991/Nuxt4-Stalker-Portal.git
+cd Nuxt4-Stalker-Portal
 
 # Install dependencies
 pnpm install
-```
-
-### Backend Setup
-
-1. **Create Backend Proxy**
-
-Create a `backend/proxy.php` file in your project root:
-
-```php
-<?php
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit(0);
-}
-
-$url = $_GET['url'] ?? '';
-
-if (empty($url)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'URL parameter is required']);
-    exit;
-}
-
-// Validate URL
-if (!filter_var($url, FILTER_VALIDATE_URL)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid URL']);
-    exit;
-}
-
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_HEADER, false);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0');
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-$curlError = curl_error($ch);
-curl_close($ch);
-
-if ($curlError) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Proxy error: ' . $curlError]);
-    exit;
-}
-
-http_response_code($httpCode);
-header('Content-Type: ' . $contentType);
-echo $response;
-?>
-```
-
-2. **Configure Web Server**
-
-For Apache, create `.htaccess` in `backend/` directory:
-
-```apache
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteBase /backend/
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^(.*)$ proxy.php [QSA,L]
-</IfModule>
-```
-
-3. **Update Proxy URLs**
-
-Update the proxy URL in your components to match your setup:
-
-```typescript
-// In VideoPlayer.vue and other components
-const proxyUrl = computed(() => {
-  if (!sourceUrl.value) return "";
-  return (
-    "http://your-domain.com/backend/proxy.php?url=" +
-    encodeURIComponent(sourceUrl.value)
-  );
-});
-```
-
-### Environment Configuration
-
-Create a `.env` file in the project root:
-
-```bash
-# API Configuration (Optional)
-NUXT_PUBLIC_API_BASE=http://your-backend-url
-
-# Proxy Configuration
-NUXT_PUBLIC_PROXY_URL=http://your-domain.com/backend/proxy.php
 ```
 
 ### Development Server
@@ -248,93 +216,231 @@ Start the development server on `http://localhost:3000`:
 pnpm dev
 ```
 
-Open your browser and navigate to `http://localhost:3000`
+### Production Build
+
+```bash
+# Build for production
+pnpm build
+
+# Preview production build
+pnpm preview
+```
 
 ## 🏗️ Project Structure
 
 ```
 nuxt-iptv-player/
-├── components/
-│   ├── Card.vue                    # Reusable card component with Netflix-style design
-│   ├── VideoPlayer.vue             # Video player with Plyr and error handling
-│   ├── live/
-│   │   └── index.vue              # Live channels grid with virtual scrolling
-│   ├── movies/
-│   │   └── index.vue              # Movies grid with virtual scrolling
-│   └── series/
-│       └── index.vue              # TV series grid
-├── stores/
-│   ├── stalker.ts                 # Pinia store for Stalker Portal API
-│   └── xtream.ts                  # Pinia store for Xtream Codes API
-├── backend/
-│   ├── proxy.php                  # PHP proxy for CORS and streaming
-│   └── .htaccess                  # Apache configuration
-├── pages/
-│   └── index.vue                  # Main application page
-├── layouts/
-│   └── default.vue                # Default layout
-├── public/
-│   └── favicon.ico                # App favicon
-├── nuxt.config.ts                 # Nuxt configuration
-├── tailwind.config.ts             # Tailwind CSS configuration
-└── package.json                   # Dependencies and scripts
+├── app/
+│   ├── components/
+│   │   ├── Card.vue                    # Netflix-style content card
+│   │   ├── VideoPlayer.vue             # Advanced video player
+│   │   ├── ChannelsSidebar.vue         # Live TV sidebar with filters
+│   │   ├── MovieSidebar.vue            # Movies sidebar
+│   │   ├── SeriesSidebar.vue           # Series sidebar with episodes
+│   │   ├── SearchModal.vue             # Global search modal
+│   │   ├── live/                       # Live TV components
+│   │   ├── movies/                     # Movie components
+│   │   └── series/                     # Series components
+│   ├── composables/
+│   │   ├── useAuth.ts                  # Authentication logic
+│   │   ├── useImageProxy.ts            # Image proxy utilities
+│   │   ├── useFavorites.ts             # Favorites management
+│   │   └── useSeriesDetails.ts         # Series metadata
+│   ├── stores/
+│   │   ├── accounts.ts                 # Multi-account management
+│   │   ├── stalker.ts                  # Stalker Portal API
+│   │   ├── xtream.ts                   # Xtream Codes API
+│   │   ├── favorites.ts                # Favorites store
+│   │   ├── watchHistory.ts             # Watch history tracking
+│   │   ├── channelManagement.ts        # Channel preferences
+│   │   └── settings.ts                 # App settings
+│   ├── pages/
+│   │   ├── index.vue                   # Login page
+│   │   └── dashboard.vue               # Main dashboard
+│   └── utils/
+│       └── crypto.ts                   # AES-GCM encryption utilities
+├── types/
+│   ├── app.ts                          # Application types
+│   ├── stalker.ts                      # Stalker API types
+│   └── xtream.ts                       # Xtream API types
+├── nuxt.config.ts                      # Nuxt configuration
+├── tailwind.config.ts                  # Tailwind CSS configuration
+└── package.json                        # Dependencies and scripts
 ```
 
 ## 🎯 Usage
 
 > **Reminder**: Only use this application with services you have legal access to and proper subscriptions for.
 
-### 1. Authentication
+### 1. First Time Login
 
 #### Stalker Portal
 
-```typescript
-const stalker = useStalkerStore();
-
-await stalker.authenticate({
-  portalUrl: "http://your-portal.com",
-  macAddress: "00:1A:79:XX:XX:XX",
-});
-
-// Load categories
-await stalker.loadGenres("itv"); // For live TV
-await stalker.loadGenres("vod"); // For movies
-await stalker.loadGenres("series"); // For series
-```
+1. Navigate to the login page
+2. Select "Stalker Portal" as provider type
+3. Enter your portal URL and MAC address
+4. Check "Remember me" to save credentials
+5. Click "Sign In"
 
 #### Xtream Codes
 
+1. Navigate to the login page
+2. Select "Xtream Codes" as provider type
+3. Enter server URL, username, and password
+4. Check "Remember me" to save credentials
+5. Click "Sign In"
+
+### 2. Managing Multiple Accounts
+
+#### Adding Accounts
+
+1. Go to **Dashboard** → **Account Settings**
+2. Click **"Add Account"**
+3. Enter account name and credentials
+4. Account is automatically saved with encryption
+
+#### Switching Accounts
+
+- **From Dashboard**: Navigate to Account Settings → Click "Switch" on any saved account
+- **From Login Page**: Click on any saved account for instant login
+
+#### Managing Accounts
+
+- **Rename**: Click "Edit" button on any account
+- **Delete**: Click "Delete" button (with confirmation)
+- **View Active**: Active account shown with green badge
+
+### 3. Browsing Content
+
+- **Tabs**: Switch between Live TV, Movies, Series, and Favorites
+- **Categories**: Select categories from the left sidebar
+- **Search**: Press `Ctrl+K` (or `Cmd+K` on Mac) to open global search
+- **Filters**: Use filter tabs to view All/Favorites/Recent channels
+
+### 4. Managing Channels
+
+#### Favorites
+
+- Click the **heart icon** on any channel to add/remove from favorites
+- Access all favorites from the **Favorites** filter tab
+- View favorites across all content in the dedicated **Favorites** section
+
+#### Hiding Channels
+
+- Hover over any channel and click the **eye-off icon** to hide
+- Hidden channels won't appear in any channel lists
+- Manage hidden channels in **Account Settings** → **Hidden Channels**
+
+### 5. Category Management (Bulk Hiding)
+
+1. Go to **Dashboard** → **Account Settings** → **Category Management**
+2. Select tab: **Live TV**, **Movies**, or **Series**
+3. Click **"Hide"** on any category to hide all channels/items in that category
+4. Click **"Show"** to unhide a category
+5. Use **"Show All Categories"** to unhide everything at once
+
+### 6. Watch History & Continue Watching
+
+- **Continue Watching** section appears on dashboard when you have in-progress content
+- Click any item to resume from where you left off
+- Progress bars show completion percentage
+- Remove items with the **X** button on hover
+
+### 7. Video Playback
+
+- Click any content card to start playback
+- Player opens in fullscreen modal
+- Use **sidebar** to browse and switch content while watching
+- Press **X** button or **Escape** to close player
+- Progress is automatically saved for VOD content
+
+### 8. Keyboard Shortcuts
+
+- `Ctrl+K` / `Cmd+K` - Open global search
+- `Escape` - Close modals/player
+- `Space` - Play/Pause (when player focused)
+- `F` - Fullscreen toggle (when player focused)
+- `M` - Mute/Unmute (when player focused)
+
+## 🔒 Security Features
+
+### Credential Encryption
+
+- All account credentials encrypted using **AES-GCM** encryption
+- Encryption key derived from browser-specific data
+- Credentials never stored in plain text
+- Automatic encryption on save, decryption on load
+
+### Per-Account Data Isolation
+
+- Each account has completely isolated data storage
+- Favorites, watch history, and preferences stored separately
+- Storage keys include account ID: `iptv_{feature}_{accountId}`
+- Switching accounts automatically loads correct data
+
+### Local Storage Only
+
+- All data stored locally in browser
+- No external servers or databases
+- Complete privacy and control over your data
+- Export/import capabilities for backups
+
+## 🎨 Customization
+
+### Themes
+
+The app uses Nuxt UI with Tailwind CSS. Customize colors in `app.config.ts`:
+
 ```typescript
-const xtream = useXtreamStore();
-
-await xtream.authenticate({
-  serverUrl: "http://your-server.com:port",
-  username: "your-username",
-  password: "your-password",
-});
-
-// Categories are loaded automatically after authentication
+export default defineAppConfig({
+  ui: {
+    primary: 'red',
+    gray: 'neutral'
+  }
+})
 ```
 
-### 2. Browsing Content
+### Player Settings
 
-- Select a category from the sidebar
-- Browse channels/movies in the grid
-- Use the search bar to find specific content
-- Click on any card to start playback
+Configure player defaults in `components/VideoPlayer.vue`:
 
-### 3. Playing Content
+```typescript
+const playerOptions = {
+  controls: ['play-large', 'play', 'progress', 'current-time',
+             'mute', 'volume', 'settings', 'pip', 'fullscreen'],
+  settings: ['quality', 'speed'],
+  speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] }
+}
+```
 
-The application automatically handles playback:
+## 🐛 Troubleshooting
 
-- Click on any channel/movie card
-- Video player modal opens automatically
-- Stream starts playing with automatic quality selection
-- Use player controls for playback management
+### Video Not Playing
 
-### 4. Switching Providers
+1. Check your internet connection
+2. Verify provider credentials are correct
+3. Try switching video quality
+4. Check browser console for errors
+5. Ensure the stream URL is accessible
 
-The app automatically detects which provider is authenticated and displays the appropriate content.
+### Images Not Loading
+
+- The app uses `images.weserv.nl` proxy for reliable image loading
+- If images still don't load, check your internet connection
+- Some providers may have restrictive CORS policies
+
+### Account Switching Issues
+
+1. Clear browser cache and localStorage
+2. Re-add accounts with fresh credentials
+3. Check that credentials are valid for each account
+
+### Performance Issues
+
+1. Clear watch history to free up space
+2. Reduce number of saved accounts (limit 10)
+3. Close other browser tabs
+4. Use Chrome/Edge for best performance
 
 ## 📄 License
 
@@ -410,16 +516,16 @@ All contributors must:
 - **[Nuxt UI](https://ui.nuxt.com/)** - Fully styled and customizable components
 - **[Vue.js](https://vuejs.org/)** - The Progressive JavaScript Framework
 - **[Plyr](https://plyr.io/)** - A simple, accessible HTML5 media player
-- **[vue-virtual-scroller](https://github.com/Akryum/vue-virtual-scroller)** - Blazing fast scrolling
 - **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
 - **[Pinia](https://pinia.vuejs.org/)** - The Vue Store
+- **[images.weserv.nl](https://images.weserv.nl/)** - Free image proxy and optimization service
 
 ## 📧 Support
 
 For development and educational inquiries only:
 
-- 🐛 Issues: [GitHub Issues](https://github.com/your-username/nuxt-iptv-player/issues)
-- 📖 Documentation: [Wiki](https://github.com/your-username/nuxt-iptv-player/wiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/robleigh1991/Nuxt4-Stalker-Portal/issues)
+- 📖 Documentation: This README
 
 **Note**: Support is provided for technical/development questions only. We cannot and will not provide support for accessing unauthorized content.
 
@@ -440,6 +546,6 @@ Give a ⭐️ if this project helped you learn about modern web development and 
 
 ---
 
-**Made with ❤️ using Nuxt and Vue.js for Educational Purposes**
+**Made with ❤️ using Nuxt 4 and Vue.js for Educational Purposes**
 
-_Last updated: January 2026_
+_Last updated: February 2026_
