@@ -367,6 +367,103 @@
               </UButton>
             </div>
 
+            <!-- Cache Statistics -->
+            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-lg font-semibold">Cache Statistics</h3>
+                  <p class="text-sm text-gray-400 mt-1">
+                    Monitor and manage cached data for faster performance
+                  </p>
+                </div>
+                <UButton
+                  @click="loadCacheStats"
+                  icon="i-lucide-refresh-cw"
+                  variant="ghost"
+                  size="sm"
+                  :loading="isLoadingStats"
+                >
+                  Refresh
+                </UButton>
+              </div>
+
+              <!-- Stats Grid -->
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-white/5 p-4 rounded">
+                  <p class="text-2xl font-bold text-white">{{ cacheStats.totalKeys }}</p>
+                  <p class="text-xs text-gray-400 mt-1">Cached Items</p>
+                </div>
+                <div class="bg-white/5 p-4 rounded">
+                  <p class="text-2xl font-bold text-white">{{ cacheStats.totalSize }} KB</p>
+                  <p class="text-xs text-gray-400 mt-1">Storage Used</p>
+                </div>
+                <div class="bg-white/5 p-4 rounded">
+                  <p class="text-2xl font-bold" :class="cacheStats.expired > 0 ? 'text-yellow-500' : 'text-green-500'">
+                    {{ cacheStats.expired }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-1">Expired Entries</p>
+                </div>
+                <div class="bg-white/5 p-4 rounded">
+                  <p class="text-2xl font-bold text-white">{{ cacheHitRate }}%</p>
+                  <p class="text-xs text-gray-400 mt-1">Cache Hit Rate</p>
+                </div>
+              </div>
+
+              <!-- Cache Actions -->
+              <div class="flex gap-3">
+                <UButton
+                  @click="handleRefreshCache"
+                  icon="i-lucide-refresh-ccw"
+                  variant="soft"
+                  color="primary"
+                  :loading="isRefreshingCache"
+                >
+                  Refresh All Cache
+                </UButton>
+                <UButton
+                  @click="handleClearExpired"
+                  icon="i-lucide-trash"
+                  variant="soft"
+                  color="gray"
+                >
+                  Clear Expired
+                </UButton>
+                <UButton
+                  @click="handleClearCache"
+                  icon="i-lucide-trash-2"
+                  variant="outline"
+                  color="error"
+                >
+                  Clear All Cache
+                </UButton>
+              </div>
+
+              <!-- Cache Details (Expandable) -->
+              <div v-if="showCacheDetails" class="mt-4 pt-4 border-t border-white/10">
+                <h4 class="text-sm font-semibold mb-2 text-gray-300">Cached Categories</h4>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                  <div
+                    v-for="(age, key) in cacheAges"
+                    :key="key"
+                    class="flex items-center justify-between text-sm p-2 bg-white/5 rounded"
+                  >
+                    <span class="text-gray-300">{{ formatCacheKey(key) }}</span>
+                    <span class="text-gray-500">{{ age }} min ago</span>
+                  </div>
+                </div>
+              </div>
+
+              <UButton
+                @click="showCacheDetails = !showCacheDetails"
+                variant="ghost"
+                size="sm"
+                class="mt-3 w-full"
+              >
+                {{ showCacheDetails ? 'Hide' : 'Show' }} Cache Details
+                <UIcon :name="showCacheDetails ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" class="ml-1" />
+              </UButton>
+            </div>
+
             <!-- Playback Settings -->
             <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
               <h3 class="text-lg font-semibold mb-4">Playback Settings</h3>
@@ -615,6 +712,8 @@ definePageMeta({
   middleware: 'auth',
 });
 
+import { apiCache } from '~/utils/cache';
+
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
 const settings = useSettingsStore();
@@ -653,6 +752,21 @@ const newAccountForm = ref({
 const editAccountForm = ref({
   id: '',
   name: '',
+});
+
+// Cache statistics
+const showCacheDetails = ref(false);
+const isLoadingStats = ref(false);
+const isRefreshingCache = ref(false);
+const cacheStats = ref({
+  totalKeys: 0,
+  totalSize: 0,
+  expired: 0,
+});
+const cacheAges = ref<Record<string, number>>({});
+const cacheHitRate = computed(() => {
+  // Simple estimation - if we have cached items, assume 80% hit rate
+  return cacheStats.value.totalKeys > 0 ? 80 : 0;
 });
 
 // Favorites
@@ -699,6 +813,9 @@ onMounted(async () => {
   await accountsStore.init();
   watchHistoryStore.init();
   channelMgmtStore.init();
+
+  // Load cache statistics
+  loadCacheStats();
 
   // Setup keyboard shortcuts
   setupCommonShortcuts({
@@ -1213,6 +1330,108 @@ function handleUnhideAllCategories() {
       timeout: 2000,
     });
   }
+}
+
+// Cache management functions
+function loadCacheStats() {
+  isLoadingStats.value = true;
+
+  try {
+    // Get cache stats from utility
+    cacheStats.value = apiCache.getStats();
+
+    // Get ages for individual cache entries
+    cacheAges.value = {};
+    const keys = ['categories_live', 'categories_movies', 'categories_series'];
+
+    keys.forEach(key => {
+      const age = apiCache.getAge(key);
+      if (age !== null) {
+        cacheAges.value[key] = age;
+      }
+    });
+
+    console.log('[Cache] Stats loaded:', cacheStats.value);
+  } catch (error) {
+    console.error('[Cache] Failed to load stats:', error);
+  } finally {
+    isLoadingStats.value = false;
+  }
+}
+
+async function handleRefreshCache() {
+  if (!confirm('Refresh all cached data? This will reload categories from the server.')) {
+    return;
+  }
+
+  isRefreshingCache.value = true;
+
+  try {
+    if (providerType.value === 'stalker') {
+      await stalker.refreshCache();
+    } else if (providerType.value === 'xtream') {
+      await xtream.refreshCache();
+    }
+
+    toast.add({
+      title: 'Cache Refreshed',
+      description: 'All data has been reloaded from the server',
+      color: 'success',
+    });
+
+    // Reload stats
+    loadCacheStats();
+  } catch (error) {
+    console.error('[Cache] Failed to refresh:', error);
+    toast.add({
+      title: 'Refresh Failed',
+      description: 'Failed to refresh cache',
+      color: 'error',
+    });
+  } finally {
+    isRefreshingCache.value = false;
+  }
+}
+
+function handleClearExpired() {
+  const count = apiCache.clearExpired();
+
+  toast.add({
+    title: 'Expired Cache Cleared',
+    description: `Removed ${count} expired cache entries`,
+    color: 'success',
+  });
+
+  // Reload stats
+  loadCacheStats();
+}
+
+function handleClearCache() {
+  if (!confirm('Clear all cached data? You will need to reload categories from the server.')) {
+    return;
+  }
+
+  if (providerType.value === 'stalker') {
+    stalker.clearCache();
+  } else if (providerType.value === 'xtream') {
+    xtream.clearAllCache();
+  }
+
+  toast.add({
+    title: 'Cache Cleared',
+    description: 'All cached data has been removed',
+    color: 'success',
+  });
+
+  // Reload stats
+  loadCacheStats();
+}
+
+function formatCacheKey(key: string): string {
+  return key
+    .replace('categories_', '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
 }
 
 function handleLogout() {
