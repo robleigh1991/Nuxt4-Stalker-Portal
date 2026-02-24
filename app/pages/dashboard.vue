@@ -77,9 +77,9 @@
               color="gray"
               variant="ghost"
               size="sm"
-              @click="watchHistoryStore.clearCompleted()"
+              @click="handleClearContinueWatching"
             >
-              Clear Watched
+              Clear All
             </UButton>
           </div>
 
@@ -1432,6 +1432,17 @@ function formatCacheKey(key: string): string {
     .replace('categories_', '')
     .replace(/_/g, ' ')
     .replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function handleClearContinueWatching() {
+  if (confirm('Clear all continue watching items?')) {
+    watchHistoryStore.clearContinueWatching();
+    toast.add({
+      title: 'Continue Watching Cleared',
+      description: 'All in-progress items have been removed',
+      color: 'success',
+    });
+  }
 }
 
 function handleLogout() {

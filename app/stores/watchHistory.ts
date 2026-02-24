@@ -217,6 +217,18 @@ export const useWatchHistoryStore = defineStore('watchHistory', {
     },
 
     /**
+     * Clear continue watching items (5%-90% progress)
+     */
+    clearContinueWatching() {
+      // Remove items in the 5%-90% range (continue watching)
+      this.history = this.history.filter((item) => {
+        const progress = (item.lastPosition / item.duration) * 100;
+        return progress < 5 || progress >= 90;
+      });
+      this.save();
+    },
+
+    /**
      * Save to localStorage for current account
      */
     save() {
