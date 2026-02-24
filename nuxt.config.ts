@@ -47,9 +47,8 @@ export default defineNuxtConfig({
       sessionTimeout: Number(process.env.NUXT_PUBLIC_SESSION_TIMEOUT) || 3600000,
       enableFavorites: process.env.NUXT_PUBLIC_ENABLE_FAVORITES !== 'false',
       debugMode: process.env.NUXT_PUBLIC_DEBUG_MODE === 'true',
-      // Memory optimization (reduced for better memory management)
+      // Memory optimization (virtual scrolling handles item memory efficiently)
       maxCachedCategories: Number(process.env.NUXT_PUBLIC_MAX_CACHED_CATEGORIES) || 3,
-      maxItemsPerCategory: Number(process.env.NUXT_PUBLIC_MAX_ITEMS_PER_CATEGORY) || 150,
       cacheTimeout: Number(process.env.NUXT_PUBLIC_CACHE_TIMEOUT) || 180000, // 3 minutes
     },
   },

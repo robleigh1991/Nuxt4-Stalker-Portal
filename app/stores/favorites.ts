@@ -7,11 +7,10 @@
 import { defineStore } from 'pinia';
 import type { FavoriteItem, ProviderType, ContentType } from '~/types/app';
 
-const STORAGE_KEY = 'iptv_favorites';
-
 export const useFavoritesStore = defineStore('favorites', {
   state: () => ({
     items: [] as FavoriteItem[],
+    currentAccountId: null as string | null,
     isLoaded: false,
   }),
 
@@ -57,22 +56,44 @@ export const useFavoritesStore = defineStore('favorites', {
 
   actions: {
     /**
-     * Initialize favorites from localStorage
+     * Get storage key for current account
+     */
+    getStorageKey(): string {
+      const accountsStore = useAccountsStore();
+      const accountId = accountsStore.activeAccountId || 'default';
+      this.currentAccountId = accountId;
+      return `iptv_favorites_${accountId}`;
+    },
+
+    /**
+     * Initialize favorites from localStorage for active account
      */
     init() {
-      if (!process.client || this.isLoaded) return;
+      if (!process.client) return;
 
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const storageKey = this.getStorageKey();
+        const stored = localStorage.getItem(storageKey);
         if (stored) {
           this.items = JSON.parse(stored);
+        } else {
+          this.items = [];
         }
         this.isLoaded = true;
+        console.log('[Favorites] Initialized with', this.items.length, 'items for account', this.currentAccountId);
       } catch (error) {
         console.error('Failed to load favorites:', error);
         this.items = [];
         this.isLoaded = true;
       }
+    },
+
+    /**
+     * Reload when account changes
+     */
+    reloadForAccount() {
+      this.isLoaded = false;
+      this.init();
     },
 
     /**
@@ -181,7 +202,8 @@ export const useFavoritesStore = defineStore('favorites', {
       if (!process.client) return;
 
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.items));
+        const storageKey = this.getStorageKey();
+        localStorage.setItem(storageKey, JSON.stringify(this.items));
       } catch (error) {
         console.error('Failed to save favorites:', error);
       }

@@ -3,7 +3,7 @@
     v-if="item"
     class="netflix-card group aspect-[2/3] bg-gray-900 cursor-pointer"
     :class="{
-      'ring-2 ring-primary-500': selectedItem === item
+      'ring-2 ring-primary-500': selectedItem === item,
     }"
     tabindex="0"
     role="button"
@@ -18,22 +18,18 @@
       ></div>
 
       <!-- Image -->
-      <NuxtImg
-        v-if="image"
-        :src="image"
+      <img
+        v-if="proxiedImage"
+        :src="proxiedImage"
         :alt="name"
-        :width="300"
-        :height="450"
-        quality="60"
-        format="webp"
-        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        class="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
         loading="lazy"
         decoding="async"
         @error="handleImageError"
       />
       <img
         v-else
-        src="https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg"
+        :src="placeholderImage"
         :alt="name"
         class="w-full h-full object-contain p-8 opacity-50"
       />
@@ -48,7 +44,10 @@
         v-if="showFavoriteButton"
         @click.stop="toggleFavorite"
         class="absolute top-2 right-2 p-2 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm transition-all duration-200 z-20"
-        :class="{ 'opacity-100': isFavorited, 'opacity-0 group-hover:opacity-100': !isFavorited }"
+        :class="{
+          'opacity-100': isFavorited,
+          'opacity-0 group-hover:opacity-100': !isFavorited,
+        }"
         :title="isFavorited ? 'Remove from favorites' : 'Add to favorites'"
       >
         <UIcon
@@ -91,9 +90,11 @@
       </div>
 
       <!-- Footer with Title (Inside relative container) -->
-      <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+      <div
+        class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent"
+      >
         <h3 class="text-xs font-medium text-white line-clamp-2 drop-shadow-md">
-           {{ name }}
+          {{ name }}
         </h3>
       </div>
     </div>
@@ -107,8 +108,8 @@ interface Props {
   name: string;
   image?: string;
   loading?: boolean;
-  contentType?: 'live' | 'movies' | 'series';
-  providerType?: 'stalker' | 'xtream';
+  contentType?: "live" | "movies" | "series";
+  providerType?: "stalker" | "xtream";
   showFavoriteButton?: boolean;
 }
 
@@ -116,9 +117,23 @@ const props = withDefaults(defineProps<Props>(), {
   showFavoriteButton: true,
 });
 
-defineEmits(['click']);
+defineEmits(["click"]);
 
 const favorites = useFavorites();
+const { proxyImage, getPlaceholder } = useImageProxy();
+
+// Proxy the image URL for reliable loading
+const proxiedImage = computed(() => {
+  if (!props.image) return null;
+  return proxyImage(props.image, {
+    width: 300,
+    height: 450,
+    quality: 75,
+    fit: "cover",
+  });
+});
+
+const placeholderImage = computed(() => getPlaceholder());
 
 // Generate unique ID for the item
 const itemId = computed(() => {
@@ -142,14 +157,13 @@ const isFavorited = computed(() => {
 const handleImageError = (event: Event) => {
   const target = event.target as HTMLImageElement;
   target.onerror = null;
-  target.src =
-    "https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg";
+  target.src = getPlaceholder();
   target.classList.add("object-contain", "p-8", "opacity-50");
 };
 
 const toggleFavorite = () => {
   if (!props.contentType || !props.providerType) {
-    console.warn('contentType and providerType are required for favorites');
+    console.warn("contentType and providerType are required for favorites");
     return;
   }
 
@@ -159,7 +173,7 @@ const toggleFavorite = () => {
     props.contentType,
     props.name,
     props.item,
-    props.image
+    props.image,
   );
 };
 </script>

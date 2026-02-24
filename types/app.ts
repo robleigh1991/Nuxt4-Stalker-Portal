@@ -122,3 +122,23 @@ export interface SessionData {
     expDate?: string | number;
   };
 }
+
+/**
+ * Account metadata (stored unencrypted)
+ */
+export interface AccountMetadata {
+  id: string;
+  name: string;
+  providerType: ProviderType;
+  createdAt: number;
+  lastUsedAt: number;
+  isActive: boolean;
+}
+
+/**
+ * Account credentials container
+ */
+export interface AccountCredentials {
+  accountId: string;
+  credentials: any; // StalkerCredentials | XtreamCredentials
+}

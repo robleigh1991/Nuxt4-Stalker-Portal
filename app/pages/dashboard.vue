@@ -64,7 +64,57 @@
       <!-- Main Content -->
       <div class="flex-1 h-screen overflow-y-auto bg-black relative p-8">
         <UProgress v-if="progress > 0 && progress < 100" v-model="progress" color="error" class="mb-4" />
-        
+
+        <!-- Continue Watching Section (shown on Live/Movies/Series tabs) -->
+        <div v-if="['live-tv', 'movies', 'series'].includes(selectedTab) && continueWatchingList.length > 0" class="mb-8">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-2xl font-bold flex items-center gap-2">
+              <UIcon name="i-lucide-play-circle" class="w-6 h-6 text-red-600" />
+              Continue Watching
+            </h2>
+            <UButton
+              icon="i-lucide-x"
+              color="gray"
+              variant="ghost"
+              size="sm"
+              @click="watchHistoryStore.clearCompleted()"
+            >
+              Clear Watched
+            </UButton>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <div
+              v-for="item in continueWatchingList"
+              :key="item.id"
+              class="relative"
+            >
+              <Card
+                :item="item.data"
+                :name="item.name"
+                :image="item.image"
+                :contentType="item.contentType"
+                :providerType="item.providerType"
+                @click="resumeWatchingItem(item)"
+              />
+              <!-- Progress Bar Overlay -->
+              <div class="absolute bottom-0 left-0 right-0 h-1 bg-gray-800">
+                <div
+                  class="h-full bg-red-600 transition-all"
+                  :style="{ width: `${item.progress}%` }"
+                ></div>
+              </div>
+              <!-- Remove Button -->
+              <button
+                @click.stop="watchHistoryStore.remove(item.id)"
+                class="absolute top-2 left-2 p-1.5 rounded-full bg-black/80 hover:bg-red-600 backdrop-blur-sm transition-colors z-20 opacity-0 group-hover:opacity-100"
+              >
+                <UIcon name="i-lucide-x" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Content Views -->
         <div v-show="selectedTab === 'live-tv'"><Live /></div>
         <div v-show="selectedTab === 'movies'"><Movies /></div>
@@ -95,17 +145,439 @@
 
         <!-- Account -->
         <div v-if="selectedTab === 'account'">
-          <div class="max-w-md mx-auto py-12">
+          <div class="max-w-2xl mx-auto py-12">
             <h2 class="text-2xl font-bold mb-8">Account Settings</h2>
-            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
-              <span class="text-gray-500 text-sm">Active Provider</span>
-              <p class="text-xl font-bold uppercase">{{ providerType }}</p>
+
+            <!-- Active Account -->
+            <div v-if="accountsStore.activeAccount" class="bg-[#141414] p-6 rounded border border-green-600/50 mb-6">
+              <div class="flex items-start justify-between mb-2">
+                <div>
+                  <span class="text-gray-500 text-sm">Active Account</span>
+                  <p class="text-xl font-bold">{{ accountsStore.activeAccount.name }}</p>
+                </div>
+                <UBadge color="green" variant="soft">Active</UBadge>
+              </div>
+              <p class="text-sm text-gray-400 uppercase">{{ accountsStore.activeAccount.providerType }}</p>
             </div>
-            <UButton block size="xl" color="error" icon="i-lucide-log-out" @click="handleLogout">Sign Out</UButton>
+
+            <!-- Saved Accounts -->
+            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Saved Accounts</h3>
+                <UButton
+                  v-if="accountsStore.accounts.length < 10"
+                  icon="i-lucide-plus"
+                  color="primary"
+                  variant="soft"
+                  size="sm"
+                  @click="showAddAccountModal = true"
+                >
+                  Add Account
+                </UButton>
+              </div>
+
+              <div v-if="accountsStore.accounts.length === 0" class="text-center py-8 text-gray-500">
+                <UIcon name="i-lucide-user-x" class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No saved accounts</p>
+              </div>
+
+              <div v-else class="space-y-3">
+                <div
+                  v-for="account in accountsStore.all"
+                  :key="account.id"
+                  class="bg-black/50 p-4 rounded border border-white/5 hover:border-white/10 transition-all"
+                >
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 mb-1">
+                        <h4 class="font-semibold">{{ account.name }}</h4>
+                        <UBadge v-if="account.isActive" color="green" variant="soft" size="xs">Active</UBadge>
+                      </div>
+                      <p class="text-xs text-gray-400 uppercase mb-1">{{ account.providerType }}</p>
+                      <p class="text-xs text-gray-500">Last used {{ formatRelativeTime(account.lastUsedAt) }}</p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <UButton
+                        v-if="!account.isActive"
+                        icon="i-lucide-arrow-right"
+                        color="primary"
+                        variant="soft"
+                        size="xs"
+                        @click="handleSwitchToAccount(account.id)"
+                      >
+                        Switch
+                      </UButton>
+                      <UButton
+                        icon="i-lucide-pencil"
+                        color="gray"
+                        variant="ghost"
+                        size="xs"
+                        @click="handleEditAccount(account)"
+                      />
+                      <UButton
+                        icon="i-lucide-trash-2"
+                        color="error"
+                        variant="ghost"
+                        size="xs"
+                        @click="handleDeleteAccount(account.id)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category Management -->
+            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-lg font-semibold">Category Management</h3>
+                  <p class="text-sm text-gray-400 mt-1">
+                    Hide entire categories to filter them from all views
+                  </p>
+                </div>
+                <UBadge v-if="channelMgmtStore.hiddenCategoriesCount > 0" color="gray">
+                  {{ channelMgmtStore.hiddenCategoriesCount }} hidden
+                </UBadge>
+              </div>
+
+              <!-- Category Type Tabs -->
+              <div class="flex gap-2 mb-4 border-b border-white/10">
+                <button
+                  @click="activeCategoryTab = 'live'"
+                  class="px-4 py-2 text-sm font-medium transition-all relative"
+                  :class="activeCategoryTab === 'live'
+                    ? 'text-red-500'
+                    : 'text-gray-400 hover:text-white'"
+                >
+                  Live TV
+                  <span v-if="liveTVCategories.length > 0" class="ml-1.5 text-xs opacity-60">
+                    ({{ liveTVCategories.length }})
+                  </span>
+                  <div
+                    v-if="activeCategoryTab === 'live'"
+                    class="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"
+                  ></div>
+                </button>
+                <button
+                  @click="activeCategoryTab = 'movies'"
+                  class="px-4 py-2 text-sm font-medium transition-all relative"
+                  :class="activeCategoryTab === 'movies'
+                    ? 'text-red-500'
+                    : 'text-gray-400 hover:text-white'"
+                >
+                  Movies
+                  <span v-if="movieCategories.length > 0" class="ml-1.5 text-xs opacity-60">
+                    ({{ movieCategories.length }})
+                  </span>
+                  <div
+                    v-if="activeCategoryTab === 'movies'"
+                    class="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"
+                  ></div>
+                </button>
+                <button
+                  @click="activeCategoryTab = 'series'"
+                  class="px-4 py-2 text-sm font-medium transition-all relative"
+                  :class="activeCategoryTab === 'series'
+                    ? 'text-red-500'
+                    : 'text-gray-400 hover:text-white'"
+                >
+                  Series
+                  <span v-if="seriesCategories.length > 0" class="ml-1.5 text-xs opacity-60">
+                    ({{ seriesCategories.length }})
+                  </span>
+                  <div
+                    v-if="activeCategoryTab === 'series'"
+                    class="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"
+                  ></div>
+                </button>
+              </div>
+
+              <!-- Category List -->
+              <div v-if="displayedCategories.length === 0" class="text-center py-8 text-gray-500">
+                <UIcon name="i-lucide-folder-x" class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No {{ activeCategoryTab === 'live' ? 'Live TV' : activeCategoryTab === 'movies' ? 'Movie' : 'Series' }} categories available</p>
+              </div>
+
+              <div v-else class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                <div
+                  v-for="category in displayedCategories"
+                  :key="category.id"
+                  class="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded transition-colors"
+                >
+                  <div class="flex-1">
+                    <p class="font-medium">{{ category.title || category.category_name }}</p>
+                    <p v-if="category.channelCount" class="text-sm text-gray-500">
+                      {{ category.channelCount }} items
+                    </p>
+                  </div>
+                  <UButton
+                    :icon="isCategoryHidden(category) ? 'i-lucide-eye' : 'i-lucide-eye-off'"
+                    :color="isCategoryHidden(category) ? 'primary' : 'gray'"
+                    :variant="isCategoryHidden(category) ? 'soft' : 'ghost'"
+                    size="sm"
+                    @click="toggleCategoryVisibility(category)"
+                  >
+                    {{ isCategoryHidden(category) ? 'Show' : 'Hide' }}
+                  </UButton>
+                </div>
+              </div>
+
+              <UButton
+                v-if="channelMgmtStore.hiddenCategoriesCount > 0"
+                @click="handleUnhideAllCategories()"
+                variant="soft"
+                color="primary"
+                size="sm"
+                class="mt-4"
+              >
+                Show All Categories
+              </UButton>
+            </div>
+
+            <!-- Channel Management -->
+            <div v-if="channelMgmtStore.hiddenCount > 0" class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Hidden Channels</h3>
+                <UBadge color="gray">{{ channelMgmtStore.hiddenCount }}</UBadge>
+              </div>
+              <p class="text-sm text-gray-400 mb-4">
+                Individual channels you've hidden. Click to unhide.
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="channelId in channelMgmtStore.hiddenChannels"
+                  :key="channelId"
+                  @click="handleUnhideChannel(channelId)"
+                  class="px-3 py-2 bg-white/5 hover:bg-white/10 rounded text-sm transition-colors flex items-center gap-2"
+                >
+                  <UIcon name="i-lucide-eye" class="w-4 h-4" />
+                  <span>{{ getChannelNameById(channelId) }}</span>
+                </button>
+              </div>
+              <UButton
+                @click="channelMgmtStore.clearHidden()"
+                variant="soft"
+                color="primary"
+                size="sm"
+                class="mt-4"
+              >
+                Unhide All Channels
+              </UButton>
+            </div>
+
+            <!-- Playback Settings -->
+            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <h3 class="text-lg font-semibold mb-4">Playback Settings</h3>
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex-1">
+                  <p class="font-medium">Auto-play next episode</p>
+                  <p class="text-sm text-gray-500">Automatically play the next episode when one finishes</p>
+                </div>
+                <USwitch
+                  v-model="settings.autoPlayNextEpisode"
+                  @update:model-value="settings.save()"
+                  size="lg"
+                />
+              </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="bg-red-950/20 p-6 rounded border border-red-600/30">
+              <h3 class="text-lg font-semibold mb-4 text-red-400">Danger Zone</h3>
+              <div class="flex flex-col gap-3">
+                <UButton
+                  block
+                  size="xl"
+                  color="error"
+                  variant="outline"
+                  icon="i-lucide-log-out"
+                  @click="handleLogout"
+                >
+                  Sign Out
+                </UButton>
+                <UButton
+                  v-if="accountsStore.accounts.length > 0"
+                  block
+                  size="xl"
+                  color="error"
+                  variant="soft"
+                  icon="i-lucide-trash-2"
+                  @click="handleClearAllAccounts"
+                >
+                  Clear All Accounts
+                </UButton>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+  <!-- Add Account Modal -->
+  <UModal v-model:open="showAddAccountModal" :close="true">
+    <template #content>
+      <div class="p-6 bg-[#141414]">
+        <h3 class="text-xl font-bold mb-6">Add New Account</h3>
+
+        <div class="space-y-4">
+          <div>
+            <label class="text-sm text-gray-400 mb-1 block">Account Name</label>
+            <UInput
+              v-model="newAccountForm.name"
+              placeholder="e.g., Home IPTV"
+              size="xl"
+              block
+            />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-400 mb-1 block">Provider Type</label>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                @click="newAccountForm.providerType = 'stalker'"
+                class="p-4 rounded border-2 transition-all"
+                :class="newAccountForm.providerType === 'stalker'
+                  ? 'border-red-600 bg-red-600/10'
+                  : 'border-white/10 hover:border-white/20'"
+              >
+                <p class="font-semibold">Stalker</p>
+              </button>
+              <button
+                @click="newAccountForm.providerType = 'xtream'"
+                class="p-4 rounded border-2 transition-all"
+                :class="newAccountForm.providerType === 'xtream'
+                  ? 'border-red-600 bg-red-600/10'
+                  : 'border-white/10 hover:border-white/20'"
+              >
+                <p class="font-semibold">Xtream</p>
+              </button>
+            </div>
+          </div>
+
+          <!-- Stalker Fields -->
+          <template v-if="newAccountForm.providerType === 'stalker'">
+            <div>
+              <label class="text-sm text-gray-400 mb-1 block">Portal URL</label>
+              <UInput
+                v-model="newAccountForm.portalUrl"
+                placeholder="http://example.com/stalker_portal/c"
+                size="xl"
+                block
+              />
+            </div>
+            <div>
+              <label class="text-sm text-gray-400 mb-1 block">MAC Address</label>
+              <UInput
+                v-model="newAccountForm.macAddress"
+                placeholder="00:1A:79:XX:XX:XX"
+                size="xl"
+                block
+              />
+            </div>
+          </template>
+
+          <!-- Xtream Fields -->
+          <template v-if="newAccountForm.providerType === 'xtream'">
+            <div>
+              <label class="text-sm text-gray-400 mb-1 block">Server URL</label>
+              <UInput
+                v-model="newAccountForm.serverUrl"
+                placeholder="http://example.com:8080"
+                size="xl"
+                block
+              />
+            </div>
+            <div>
+              <label class="text-sm text-gray-400 mb-1 block">Username</label>
+              <UInput
+                v-model="newAccountForm.username"
+                placeholder="username"
+                size="xl"
+                block
+              />
+            </div>
+            <div>
+              <label class="text-sm text-gray-400 mb-1 block">Password</label>
+              <UInput
+                v-model="newAccountForm.password"
+                type="password"
+                placeholder="password"
+                size="xl"
+                block
+              />
+            </div>
+          </template>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <UButton
+            block
+            size="xl"
+            color="gray"
+            variant="outline"
+            @click="showAddAccountModal = false"
+          >
+            Cancel
+          </UButton>
+          <UButton
+            block
+            size="xl"
+            color="primary"
+            :loading="isAddingAccount"
+            @click="handleAddAccount"
+          >
+            Add Account
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <!-- Edit Account Modal -->
+  <UModal v-model:open="showEditAccountModal" :close="true">
+    <template #content>
+      <div class="p-6 bg-[#141414]">
+        <h3 class="text-xl font-bold mb-6">Edit Account</h3>
+
+        <div class="space-y-4">
+          <div>
+            <label class="text-sm text-gray-400 mb-1 block">Account Name</label>
+            <UInput
+              v-model="editAccountForm.name"
+              placeholder="e.g., Home IPTV"
+              size="xl"
+              block
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <UButton
+            block
+            size="xl"
+            color="gray"
+            variant="outline"
+            @click="showEditAccountModal = false"
+          >
+            Cancel
+          </UButton>
+          <UButton
+            block
+            size="xl"
+            color="primary"
+            @click="handleSaveAccountName"
+          >
+            Save
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <!-- Search Modal -->
+  <SearchModal v-model:open="showSearchModal" @select="handleSearchResult" />
 
   <!-- Memory Monitor -->
   <MemoryMonitor />
@@ -145,8 +617,13 @@ definePageMeta({
 
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
+const settings = useSettingsStore();
+const accountsStore = useAccountsStore();
+const watchHistoryStore = useWatchHistoryStore();
+const channelMgmtStore = useChannelManagementStore();
 const toast = useToast();
 const { setupCommonShortcuts } = useCommonShortcuts();
+const { switchAccount } = useAuth();
 const favorites = useFavorites();
 const { startAutoCleanup, stopAutoCleanup } = useMemoryCleanup();
 
@@ -156,8 +633,33 @@ const search = ref("");
 const searchInputRef = ref<HTMLElement | null>(null);
 const playerKey = ref(0); // Key to force VideoPlayer recreation
 
+// Global search modal
+const showSearchModal = ref(false);
+
+// Account management
+const showAddAccountModal = ref(false);
+const showEditAccountModal = ref(false);
+const isAddingAccount = ref(false);
+const activeCategoryTab = ref<'live' | 'movies' | 'series'>('live');
+const newAccountForm = ref({
+  name: '',
+  providerType: 'stalker' as 'stalker' | 'xtream',
+  portalUrl: '',
+  macAddress: '',
+  serverUrl: '',
+  username: '',
+  password: '',
+});
+const editAccountForm = ref({
+  id: '',
+  name: '',
+});
+
 // Favorites
 const favoritesList = computed(() => favorites.all.value);
+
+// Watch History - Continue Watching
+const continueWatchingList = computed(() => watchHistoryStore.continueWatching);
 
 // Determine which provider is active
 const providerType = computed(() => {
@@ -192,16 +694,25 @@ onMounted(async () => {
     navigateTo("/");
   }
 
+  // Initialize stores
+  settings.init();
+  await accountsStore.init();
+  watchHistoryStore.init();
+  channelMgmtStore.init();
+
   // Setup keyboard shortcuts
   setupCommonShortcuts({
     onSearch: () => {
-      // Focus search input
-      const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
-      if (searchInput) {
-        searchInput.focus();
-      }
+      // Open global search modal with Ctrl+K / Cmd+K
+      showSearchModal.value = true;
     },
     onEscape: () => {
+      // Close search modal if open
+      if (showSearchModal.value) {
+        showSearchModal.value = false;
+        return;
+      }
+
       // Clear search
       search.value = "";
 
@@ -211,6 +722,15 @@ onMounted(async () => {
       }
     },
   });
+
+  // Add Ctrl+K / Cmd+K shortcut for search
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      showSearchModal.value = true;
+    }
+  };
+  window.addEventListener('keydown', handleKeyDown);
 
   // Start automatic memory cleanup
   startAutoCleanup();
@@ -224,6 +744,9 @@ onMounted(async () => {
 onUnmounted(() => {
   // Stop automatic memory cleanup
   stopAutoCleanup();
+
+  // Remove keyboard listener
+  window.removeEventListener('keydown', handleKeyDown);
 });
 
 // Watch for modal close and force cleanup
@@ -232,15 +755,25 @@ watch(modalOpen, (isOpen, wasOpen) => {
     // Modal was closed
     console.log('[Dashboard] Modal closed - forcing video cleanup');
 
-    // Clear source URLs to stop any playing streams
+    // Abort any pending playback requests
     if (providerType.value === "stalker") {
+      if (stalker.playbackAbortController) {
+        stalker.playbackAbortController.abort();
+        stalker.playbackAbortController = null;
+      }
+      if (stalker.seriesInfoAbortController) {
+        stalker.seriesInfoAbortController.abort();
+        stalker.seriesInfoAbortController = null;
+      }
       stalker.sourceUrl = null;
       stalker.currentChannel = null;
       stalker.currentMovie = null;
       stalker.currentSeries = null;
+      stalker.currentEpisode = null;
     } else if (providerType.value === "xtream") {
       xtream.sourceUrl = null;
       xtream.currentStream = null;
+      xtream.currentEpisode = null;
     }
 
     // Increment key to force VideoPlayer recreation on next open
@@ -269,14 +802,24 @@ const filteredLiveCategories = computed(() => {
       : xtream.liveCategories;
 
   if (!categories || !Array.isArray(categories)) return [];
-  if (!search.value.trim()) return categories;
 
-  const searchTerm = search.value.toLowerCase().trim();
-  return categories.filter((category: any) =>
-    (category.title || category.category_name || "")
-      .toLowerCase()
-      .includes(searchTerm)
-  );
+  // Filter out hidden categories
+  let filtered = categories.filter((category: any) => {
+    const categoryId = channelMgmtStore.generateCategoryIdFromCategory(category, providerType.value);
+    return !channelMgmtStore.isCategoryHidden(categoryId);
+  });
+
+  // Apply search filter
+  if (search.value.trim()) {
+    const searchTerm = search.value.toLowerCase().trim();
+    filtered = filtered.filter((category: any) =>
+      (category.title || category.category_name || "")
+        .toLowerCase()
+        .includes(searchTerm)
+    );
+  }
+
+  return filtered;
 });
 
 const filteredMoviesCategories = computed(() => {
@@ -286,14 +829,24 @@ const filteredMoviesCategories = computed(() => {
       : xtream.vodCategories;
 
   if (!categories || !Array.isArray(categories)) return [];
-  if (!search.value.trim()) return categories;
 
-  const searchTerm = search.value.toLowerCase().trim();
-  return categories.filter((category: any) =>
-    (category.title || category.category_name || "")
-      .toLowerCase()
-      .includes(searchTerm)
-  );
+  // Filter out hidden categories
+  let filtered = categories.filter((category: any) => {
+    const categoryId = channelMgmtStore.generateCategoryIdFromCategory(category, providerType.value);
+    return !channelMgmtStore.isCategoryHidden(categoryId);
+  });
+
+  // Apply search filter
+  if (search.value.trim()) {
+    const searchTerm = search.value.toLowerCase().trim();
+    filtered = filtered.filter((category: any) =>
+      (category.title || category.category_name || "")
+        .toLowerCase()
+        .includes(searchTerm)
+    );
+  }
+
+  return filtered;
 });
 
 const filteredSeriesCategories = computed(() => {
@@ -303,17 +856,34 @@ const filteredSeriesCategories = computed(() => {
       : xtream.seriesCategories;
 
   if (!categories || !Array.isArray(categories)) return [];
-  if (!search.value.trim()) return categories;
 
-  const searchTerm = search.value.toLowerCase().trim();
-  return categories.filter((category: any) =>
-    (category.title || category.category_name || "")
-      .toLowerCase()
-      .includes(searchTerm)
-  );
+  // Filter out hidden categories
+  let filtered = categories.filter((category: any) => {
+    const categoryId = channelMgmtStore.generateCategoryIdFromCategory(category, providerType.value);
+    return !channelMgmtStore.isCategoryHidden(categoryId);
+  });
+
+  // Apply search filter
+  if (search.value.trim()) {
+    const searchTerm = search.value.toLowerCase().trim();
+    filtered = filtered.filter((category: any) =>
+      (category.title || category.category_name || "")
+        .toLowerCase()
+        .includes(searchTerm)
+    );
+  }
+
+  return filtered;
 });
 
 function setSelectedTab(tab: string) {
+  // Abort all pending requests when switching tabs
+  if (providerType.value === "stalker") {
+    stalker.abortAllRequests();
+  } else if (providerType.value === "xtream") {
+    // TODO: Add xtream abort method if needed
+  }
+
   selectedTab.value = tab;
   selectedCategory.value = null;
   search.value = "";
@@ -352,6 +922,296 @@ async function setSelectedCategory(category: any) {
     } else if (selectedTab.value === "series") {
       await xtream.getSeriesStreams(categoryId);
     }
+  }
+}
+
+// Account management functions
+async function handleAddAccount() {
+  try {
+    isAddingAccount.value = true;
+
+    // Validate form
+    if (!newAccountForm.value.name.trim()) {
+      toast.add({
+        title: 'Validation Error',
+        description: 'Please enter an account name',
+        color: 'error',
+      });
+      return;
+    }
+
+    // Prepare credentials
+    let credentials: any = null;
+
+    if (newAccountForm.value.providerType === 'stalker') {
+      if (!newAccountForm.value.portalUrl || !newAccountForm.value.macAddress) {
+        toast.add({
+          title: 'Validation Error',
+          description: 'Please enter Portal URL and MAC Address',
+          color: 'error',
+        });
+        return;
+      }
+      credentials = {
+        portalUrl: newAccountForm.value.portalUrl,
+        macAddress: newAccountForm.value.macAddress,
+      };
+    } else if (newAccountForm.value.providerType === 'xtream') {
+      if (!newAccountForm.value.serverUrl || !newAccountForm.value.username || !newAccountForm.value.password) {
+        toast.add({
+          title: 'Validation Error',
+          description: 'Please enter Server URL, Username, and Password',
+          color: 'error',
+        });
+        return;
+      }
+      credentials = {
+        serverUrl: newAccountForm.value.serverUrl,
+        username: newAccountForm.value.username,
+        password: newAccountForm.value.password,
+      };
+    }
+
+    // Add account
+    const result = await accountsStore.addAccount(
+      newAccountForm.value.name,
+      newAccountForm.value.providerType,
+      credentials
+    );
+
+    if (result.success) {
+      toast.add({
+        title: 'Account Added',
+        description: `Successfully added ${newAccountForm.value.name}`,
+        color: 'success',
+      });
+
+      // Reset form
+      newAccountForm.value = {
+        name: '',
+        providerType: 'stalker',
+        portalUrl: '',
+        macAddress: '',
+        serverUrl: '',
+        username: '',
+        password: '',
+      };
+
+      showAddAccountModal.value = false;
+    } else {
+      toast.add({
+        title: 'Failed to Add Account',
+        description: result.error || 'Unknown error occurred',
+        color: 'error',
+      });
+    }
+  } catch (error: any) {
+    console.error('Failed to add account:', error);
+    toast.add({
+      title: 'Error',
+      description: error.message || 'Failed to add account',
+      color: 'error',
+    });
+  } finally {
+    isAddingAccount.value = false;
+  }
+}
+
+async function handleSwitchToAccount(accountId: string) {
+  const success = await switchAccount(accountId);
+  if (success) {
+    // Reload the page data
+    selectedTab.value = 'live-tv';
+    if (filteredLiveCategories.value.length > 0) {
+      await setSelectedCategory(filteredLiveCategories.value[0]);
+    }
+  }
+}
+
+function handleEditAccount(account: any) {
+  editAccountForm.value = {
+    id: account.id,
+    name: account.name,
+  };
+  showEditAccountModal.value = true;
+}
+
+async function handleSaveAccountName() {
+  const result = await accountsStore.updateAccountName(
+    editAccountForm.value.id,
+    editAccountForm.value.name
+  );
+
+  if (result.success) {
+    toast.add({
+      title: 'Account Updated',
+      description: 'Account name updated successfully',
+      color: 'success',
+    });
+    showEditAccountModal.value = false;
+  } else {
+    toast.add({
+      title: 'Update Failed',
+      description: result.error || 'Failed to update account name',
+      color: 'error',
+    });
+  }
+}
+
+async function handleDeleteAccount(accountId: string) {
+  const account = accountsStore.accounts.find(acc => acc.id === accountId);
+  if (!account) return;
+
+  if (confirm(`Are you sure you want to delete "${account.name}"?`)) {
+    const success = await accountsStore.removeAccount(accountId);
+
+    if (success) {
+      toast.add({
+        title: 'Account Deleted',
+        description: `Successfully deleted ${account.name}`,
+        color: 'success',
+      });
+
+      // If deleted active account, logout
+      if (account.isActive) {
+        handleLogout();
+      }
+    } else {
+      toast.add({
+        title: 'Delete Failed',
+        description: 'Failed to delete account',
+        color: 'error',
+      });
+    }
+  }
+}
+
+async function handleClearAllAccounts() {
+  if (confirm('Are you sure you want to clear ALL saved accounts? This cannot be undone.')) {
+    await accountsStore.clearAll();
+
+    toast.add({
+      title: 'All Accounts Cleared',
+      description: 'All saved accounts have been removed',
+      color: 'success',
+    });
+
+    // Logout and redirect to login
+    handleLogout();
+  }
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  return 'Just now';
+}
+
+// Channel management functions
+function getChannelNameById(channelId: string): string {
+  // Extract the ID part (remove provider prefix)
+  const parts = channelId.split('_');
+  const id = parts[parts.length - 1];
+  return `Channel ${id}`;
+}
+
+function handleUnhideChannel(channelId: string) {
+  channelMgmtStore.unhideChannel(channelId);
+  toast.add({
+    title: 'Channel Unhidden',
+    description: 'Channel is now visible in the channel list',
+    color: 'success',
+    timeout: 2000,
+  });
+}
+
+// Category management - separated by type
+const liveTVCategories = computed(() => {
+  const categories = providerType.value === 'stalker'
+    ? stalker.liveCategories || []
+    : xtream.liveCategories || [];
+
+  return categories.map((cat: any) => ({
+    ...cat,
+    id: cat.category_id || cat.id,
+  }));
+});
+
+const movieCategories = computed(() => {
+  const categories = providerType.value === 'stalker'
+    ? stalker.moviesCategories || []
+    : xtream.vodCategories || [];
+
+  return categories.map((cat: any) => ({
+    ...cat,
+    id: cat.category_id || cat.id,
+  }));
+});
+
+const seriesCategories = computed(() => {
+  const categories = providerType.value === 'stalker'
+    ? stalker.seriesCategories || []
+    : xtream.seriesCategories || [];
+
+  return categories.map((cat: any) => ({
+    ...cat,
+    id: cat.category_id || cat.id,
+  }));
+});
+
+const displayedCategories = computed(() => {
+  if (activeCategoryTab.value === 'live') return liveTVCategories.value;
+  if (activeCategoryTab.value === 'movies') return movieCategories.value;
+  if (activeCategoryTab.value === 'series') return seriesCategories.value;
+  return [];
+});
+
+function isCategoryHidden(category: any): boolean {
+  const categoryId = channelMgmtStore.generateCategoryIdFromCategory(category, providerType.value);
+  return channelMgmtStore.isCategoryHidden(categoryId);
+}
+
+function toggleCategoryVisibility(category: any) {
+  const categoryId = channelMgmtStore.generateCategoryIdFromCategory(category, providerType.value);
+  const isHidden = channelMgmtStore.isCategoryHidden(categoryId);
+  const categoryName = category.title || category.category_name;
+
+  if (isHidden) {
+    channelMgmtStore.unhideCategory(categoryId);
+    toast.add({
+      title: 'Category Shown',
+      description: `"${categoryName}" is now visible`,
+      color: 'success',
+      timeout: 2000,
+    });
+  } else {
+    channelMgmtStore.hideCategory(categoryId);
+    toast.add({
+      title: 'Category Hidden',
+      description: `"${categoryName}" has been hidden`,
+      color: 'primary',
+      timeout: 2000,
+    });
+  }
+}
+
+function handleUnhideAllCategories() {
+  if (confirm('Show all hidden categories?')) {
+    channelMgmtStore.clearHiddenCategories();
+    toast.add({
+      title: 'All Categories Shown',
+      description: 'All categories are now visible',
+      color: 'success',
+      timeout: 2000,
+    });
   }
 }
 
@@ -406,6 +1266,52 @@ async function playFavoriteItem(fav: any) {
       await xtream.playLiveStream(fav.data);
     } else if (fav.contentType === 'movies') {
       await xtream.playVodStream(fav.data);
+    }
+  }
+}
+
+async function resumeWatchingItem(item: any) {
+  // Same logic as playFavoriteItem - resume will happen automatically in VideoPlayer
+  await playFavoriteItem(item);
+}
+
+// Handle search result selection
+async function handleSearchResult(result: any) {
+  // Switch to appropriate tab
+  if (result.type === 'live') {
+    selectedTab.value = 'live-tv';
+  } else if (result.type === 'movies') {
+    selectedTab.value = 'movies';
+  } else if (result.type === 'series') {
+    selectedTab.value = 'series';
+  }
+
+  await nextTick();
+
+  // Play the item
+  if (result.data) {
+    if (providerType.value === 'stalker') {
+      if (result.type === 'live') {
+        stalker.currentChannel = result.data;
+        await stalker.createLink(result.data.cmd, 'itv');
+        stalker.modalOpen = true;
+      } else if (result.type === 'movies') {
+        stalker.currentMovie = result.data;
+        await stalker.createLink(result.data.cmd, 'vod');
+        stalker.modalOpen = true;
+      } else if (result.type === 'series') {
+        stalker.currentSeries = result.data;
+        stalker.modalOpen = true;
+      }
+    } else if (providerType.value === 'xtream') {
+      if (result.type === 'live') {
+        await xtream.playLiveStream(result.data);
+      } else if (result.type === 'movies') {
+        await xtream.playVodStream(result.data);
+      } else if (result.type === 'series') {
+        xtream.currentStream = result.data;
+        xtream.modalOpen = true;
+      }
     }
   }
 }

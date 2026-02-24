@@ -10,9 +10,9 @@
     >
       <img
         v-if="seriesDetails.backdrop_path"
-        :src="seriesDetails.backdrop_path"
+        :src="proxiedBackdrop"
         :alt="seriesDetails.name"
-        onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
+        :onerror="`this.onerror=null; this.src='${placeholderImage}'`"
         class="absolute inset-0 w-full h-full object-cover"
       />
       <div
@@ -117,10 +117,10 @@
                   class="w-20 h-12 rounded overflow-hidden bg-gray-600 shrink-0"
                 >
                   <img
-                    :src="getEpisodeImage(episode)"
+                    :src="getProxiedEpisodeImage(episode)"
                     :alt="episode.name"
                     class="w-full h-full object-cover"
-                    onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
+                    :onerror="`this.onerror=null; this.src='${placeholderImage}'`"
                   />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -186,12 +186,14 @@
 <script setup lang="ts">
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
+const { proxyImage, getPlaceholder } = useImageProxy();
 
 const props = defineProps<{
   selectedTab: string;
 }>();
 
 const selectedTabRef = computed(() => props.selectedTab);
+const placeholderImage = computed(() => getPlaceholder());
 
 // Determine which provider is active
 const providerType = computed(() => {
@@ -222,6 +224,27 @@ function getEpisodeImage(episode: any): string {
   }
   return "";
 }
+
+function getProxiedEpisodeImage(episode: any): string {
+  const imageUrl = getEpisodeImage(episode);
+  return proxyImage(imageUrl, {
+    width: 160,
+    height: 90,
+    quality: 75,
+    fit: 'cover',
+  });
+}
+
+// Proxied backdrop image
+const proxiedBackdrop = computed(() => {
+  if (!seriesDetails.value?.backdrop_path) return getPlaceholder();
+  return proxyImage(seriesDetails.value.backdrop_path, {
+    width: 800,
+    height: 450,
+    quality: 80,
+    fit: 'cover',
+  });
+});
 
 const {
   seriesDetails,

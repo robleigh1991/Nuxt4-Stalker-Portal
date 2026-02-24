@@ -106,11 +106,29 @@ export const useSeriesDetails = (selectedTab: Ref<string>) => {
   async function playEpisode(episode: any) {
     if (providerType.value === "stalker") {
       if (!episode?.cmd) return;
+
+      // Track current episode for auto-play
+      stalker.currentEpisode = {
+        seriesId: stalker.currentSeries?.id || null,
+        seasonNumber: selectedSeason.value,
+        episodeNumber: episode.episode_num || episode.episode,
+        episodeData: episode,
+      };
+
       await stalker.createSeriesLink(episode.cmd, "vod", episode.episode);
       stalker.modalOpen = true;
     } else if (providerType.value === "xtream") {
       if (!episode?.id) return;
       const seriesId = xtream.currentStream?.series_id;
+
+      // Track current episode for auto-play
+      xtream.currentEpisode = {
+        seriesId: seriesId || null,
+        seasonNumber: parseInt(episode.season),
+        episodeNumber: parseInt(episode.episode_num),
+        episodeData: episode,
+      };
+
       await xtream.playSeriesEpisode(seriesId, episode.id);
     }
   }
@@ -258,6 +276,79 @@ export const useSeriesDetails = (selectedTab: Ref<string>) => {
 
   watch(selectedSeason, fetchEpisodes);
 
+  /**
+   * Get the next episode to auto-play
+   * Returns null if there's no next episode
+   */
+  function getNextEpisode(
+    currentSeasonNum: number,
+    currentEpisodeNum: number
+  ): any | null {
+    // Find current season
+    const currentSeasonIndex = availableSeasons.value.findIndex(
+      (s: any) => s.value === currentSeasonNum
+    );
+
+    if (currentSeasonIndex === -1) return null;
+
+    const currentSeason = availableSeasons.value[currentSeasonIndex];
+
+    // Try to find next episode in current season
+    if (providerType.value === "stalker") {
+      const currentEpisodeIndex = currentSeason.iptv.series.findIndex(
+        (epNum: number) => epNum === currentEpisodeNum
+      );
+
+      // Check if there's a next episode in this season
+      if (
+        currentEpisodeIndex !== -1 &&
+        currentEpisodeIndex < currentSeason.iptv.series.length - 1
+      ) {
+        const nextEpNum = currentSeason.iptv.series[currentEpisodeIndex + 1];
+        return {
+          id: `${currentSeason.iptv.id}:${nextEpNum}`,
+          episode: nextEpNum,
+          episode_num: nextEpNum,
+          name: `Episode ${nextEpNum}`,
+          cmd: currentSeason.iptv.cmd,
+        };
+      }
+    } else if (providerType.value === "xtream") {
+      const currentEpisodeIndex = currentSeason.episodes.findIndex(
+        (ep: any) => parseInt(ep.episode_num) === currentEpisodeNum
+      );
+
+      // Check if there's a next episode in this season
+      if (
+        currentEpisodeIndex !== -1 &&
+        currentEpisodeIndex < currentSeason.episodes.length - 1
+      ) {
+        return currentSeason.episodes[currentEpisodeIndex + 1];
+      }
+    }
+
+    // No more episodes in current season, try first episode of next season
+    if (currentSeasonIndex < availableSeasons.value.length - 1) {
+      const nextSeason = availableSeasons.value[currentSeasonIndex + 1];
+
+      if (providerType.value === "stalker") {
+        const firstEpNum = nextSeason.iptv.series[0];
+        return {
+          id: `${nextSeason.iptv.id}:${firstEpNum}`,
+          episode: firstEpNum,
+          episode_num: firstEpNum,
+          name: `Episode ${firstEpNum}`,
+          cmd: nextSeason.iptv.cmd,
+        };
+      } else if (providerType.value === "xtream") {
+        return nextSeason.episodes[0];
+      }
+    }
+
+    // No next season, end of series
+    return null;
+  }
+
   return {
     seriesDetails,
     loadingSeriesDetails,
@@ -267,5 +358,6 @@ export const useSeriesDetails = (selectedTab: Ref<string>) => {
     availableSeasons,
     episodes,
     playEpisode,
+    getNextEpisode,
   };
 };

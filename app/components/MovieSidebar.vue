@@ -7,7 +7,7 @@
     <div v-if="movieDetails" class="movie-header relative h-64 overflow-hidden">
       <img
         v-if="movieDetails.backdrop_path"
-        :src="`https://image.tmdb.org/t/p/w1280${movieDetails.backdrop_path}`"
+        :src="proxiedBackdrop"
         :alt="movieDetails.title"
         class="absolute inset-0 w-full h-full object-cover"
       />
@@ -88,7 +88,7 @@
             >
               <img
                 v-if="actor.profile_path"
-                :src="`https://image.tmdb.org/t/p/w92${actor.profile_path}`"
+                :src="proxyTmdbImage(actor.profile_path, 92)"
                 :alt="actor.name"
                 class="w-12 h-12 rounded-full object-cover"
               />
@@ -131,7 +131,7 @@
             >
               <img
                 v-if="company.logo_path"
-                :src="`https://image.tmdb.org/t/p/w92${company.logo_path}`"
+                :src="proxyTmdbImage(company.logo_path, 92)"
                 :alt="company.name"
                 class="h-8 object-contain bg-white rounded p-1"
               />
@@ -156,6 +156,7 @@
 <script setup lang="ts">
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
+const { proxyImage } = useImageProxy();
 
 const props = defineProps<{
   selectedTab: string;
@@ -186,6 +187,27 @@ function closeModal() {
 
 const { movieDetails, loadingMovieDetails, movieDetailsError, trailerVideo } =
   useMovieDetails(selectedTabRef);
+
+// Helper to proxy TMDB images
+function proxyTmdbImage(path: string, width: number = 300): string {
+  const tmdbUrl = `https://image.tmdb.org/t/p/w${width}${path}`;
+  return proxyImage(tmdbUrl, {
+    width,
+    quality: 80,
+    fit: 'cover',
+  });
+}
+
+// Proxied backdrop image
+const proxiedBackdrop = computed(() => {
+  if (!movieDetails.value?.backdrop_path) return '';
+  const tmdbUrl = `https://image.tmdb.org/t/p/w1280${movieDetails.value.backdrop_path}`;
+  return proxyImage(tmdbUrl, {
+    width: 1280,
+    quality: 85,
+    fit: 'cover',
+  });
+});
 </script>
 
 <style scoped>

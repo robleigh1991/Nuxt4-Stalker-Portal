@@ -26,6 +26,12 @@ export const useXtreamStore = defineStore("xtream", {
     selectedCategory: null as any | null,
     currentStream: null as any | null,
     sourceUrl: null as string | null,
+    currentEpisode: null as {
+      seriesId: number | null;
+      seasonNumber: number | null;
+      episodeNumber: number | null;
+      episodeData: any | null;
+    } | null,
 
     // UI State
     isLoading: false,
@@ -35,7 +41,6 @@ export const useXtreamStore = defineStore("xtream", {
 
     // Memory management
     cacheConfig: {
-      maxItemsPerCategory: 200,        // Max items to keep per category
       maxCachedCategories: 5,           // Max categories cached at once
       cacheTimeout: 5 * 60 * 1000,      // 5 minutes
       lastAccessed: {} as Record<string, number>,
@@ -136,13 +141,8 @@ export const useXtreamStore = defineStore("xtream", {
       }
     },
 
-    limitItemsArray(items: any[]): any[] {
-      if (items.length > this.cacheConfig.maxItemsPerCategory) {
-        console.log(`[Memory] Limiting ${items.length} items to ${this.cacheConfig.maxItemsPerCategory}`);
-        return items.slice(0, this.cacheConfig.maxItemsPerCategory);
-      }
-      return items;
-    },
+    // No longer needed - virtual scrolling handles memory efficiency
+    // limitItemsArray removed as it was cutting off valid items
 
     // ==========================================
     // AUTHENTICATION
@@ -228,8 +228,8 @@ export const useXtreamStore = defineStore("xtream", {
           },
         });
 
-        // Limit items and store
-        this.liveStreams[cacheKey] = this.limitItemsArray((streams as any) || []);
+        // Store streams
+        this.liveStreams[cacheKey] = (streams as any) || [];
         this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
@@ -291,8 +291,8 @@ export const useXtreamStore = defineStore("xtream", {
           },
         });
 
-        // Limit items and store
-        this.vodStreams[cacheKey] = this.limitItemsArray((streams as any) || []);
+        // Store streams
+        this.vodStreams[cacheKey] = (streams as any) || [];
         this.updateLastAccessed(cacheKey);
         this.progress = 100;
 
@@ -373,8 +373,8 @@ export const useXtreamStore = defineStore("xtream", {
           },
         });
 
-        // Limit items and store
-        this.seriesStreams[cacheKey] = this.limitItemsArray((streams as any) || []);
+        // Store streams
+        this.seriesStreams[cacheKey] = (streams as any) || [];
         this.updateLastAccessed(cacheKey);
         this.progress = 100;
 

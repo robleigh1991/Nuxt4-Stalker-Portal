@@ -20,14 +20,25 @@ export const useStalkerStore = defineStore("stalker", {
     currentChannel: null as any | null,
     currentMovie: null as any | null,
     currentSeries: null as any | null,
+    currentEpisode: null as {
+      seriesId: number | null;
+      seasonNumber: number | null;
+      episodeNumber: number | null;
+      episodeData: any | null;
+    } | null,
     // Loading states
     isLoading: false,
     error: null as string | null,
     progress: 0,
     modalOpen: false,
+    // Abort controllers for canceling requests
+    liveAbortController: null as AbortController | null,
+    moviesAbortController: null as AbortController | null,
+    seriesAbortController: null as AbortController | null,
+    playbackAbortController: null as AbortController | null,
+    seriesInfoAbortController: null as AbortController | null,
     // Memory management
     cacheConfig: {
-      maxItemsPerCategory: 200,        // Max items to keep per category
       maxCachedCategories: 5,           // Max categories cached at once
       cacheTimeout: 5 * 60 * 1000,      // 5 minutes
       lastAccessed: {} as Record<string, number>,
@@ -108,13 +119,8 @@ export const useStalkerStore = defineStore("stalker", {
       }
     },
 
-    limitItemsArray(items: any[]): any[] {
-      if (items.length > this.cacheConfig.maxItemsPerCategory) {
-        console.log(`[Memory] Limiting ${items.length} items to ${this.cacheConfig.maxItemsPerCategory}`);
-        return items.slice(0, this.cacheConfig.maxItemsPerCategory);
-      }
-      return items;
-    },
+    // No longer needed - virtual scrolling handles memory efficiency
+    // limitItemsArray removed as it was cutting off valid items
 
     async makeHandshake(portalurl: string, macaddress: string) {
       try {
@@ -188,6 +194,13 @@ export const useStalkerStore = defineStore("stalker", {
     async getLiveItems(genreId: number, page = 1) {
       const cacheKey = `${genreId}_${page}`;
 
+      // Cancel any previous live items request
+      if (this.liveAbortController) {
+        this.liveAbortController.abort();
+      }
+      this.liveAbortController = new AbortController();
+      const signal = this.liveAbortController.signal;
+
       // Return cached items if available
       if (this.liveItems[cacheKey]?.length > 0) {
         this.updateLastAccessed(cacheKey);
@@ -200,6 +213,7 @@ export const useStalkerStore = defineStore("stalker", {
         // Get first page to determine total pages
         const firstPage = await $fetch("/api/stalker/orderlist", {
           method: "POST",
+          signal,
           body: {
             portalurl: this.portalurl,
             macaddress: this.macaddress,
@@ -217,12 +231,12 @@ export const useStalkerStore = defineStore("stalker", {
         // Fetch pages and add items IMMEDIATELY as each request completes
         const batchSize = 5;
         for (let i = 1; i <= totalPages; i += batchSize) {
-          this.progress = Math.floor((i / totalPages) * 100);
           const pagePromises = [];
           for (let j = i; j < Math.min(i + batchSize, totalPages + 1); j++) {
             // Process each promise individually as it resolves
             const pagePromise = $fetch("/api/stalker/orderlist", {
               method: "POST",
+              signal,
               body: {
                 portalurl: this.portalurl,
                 macaddress: this.macaddress,
@@ -245,20 +259,29 @@ export const useStalkerStore = defineStore("stalker", {
 
           // Wait for this batch to complete before starting next batch
           await Promise.all(pagePromises);
+
+          // Update progress AFTER batch completes
+          const pagesCompleted = Math.min(i + batchSize - 1, totalPages);
+          this.progress = Math.floor((pagesCompleted / totalPages) * 100);
         }
 
         this.progress = 0;
-
-        // Limit items to prevent memory overflow
-        this.liveItems[cacheKey] = this.limitItemsArray(this.liveItems[cacheKey]);
 
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
 
         return this.liveItems[cacheKey];
-      } catch (err) {
+      } catch (err: any) {
+        // Don't throw error if request was aborted (user switched categories)
+        if (err.name === 'AbortError' || err.cause?.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('[Stalker] Live items request aborted');
+          this.progress = 0;
+          return [];
+        }
         console.error("Failed to load live items:", err);
         throw err;
+      } finally {
+        this.isLoading = false;
       }
     },
 
@@ -282,6 +305,13 @@ export const useStalkerStore = defineStore("stalker", {
     async getMoviesItems(categoryId: number, page = 1) {
       const cacheKey = `${categoryId}_${page}`;
 
+      // Cancel any previous movies request
+      if (this.moviesAbortController) {
+        this.moviesAbortController.abort();
+      }
+      this.moviesAbortController = new AbortController();
+      const signal = this.moviesAbortController.signal;
+
       if (this.moviesItems[cacheKey]?.length > 0) {
         this.updateLastAccessed(cacheKey);
         return this.moviesItems[cacheKey];
@@ -292,6 +322,7 @@ export const useStalkerStore = defineStore("stalker", {
 
         const firstPage = await $fetch("/api/stalker/orderlist", {
           method: "POST",
+          signal,
           body: {
             portalurl: this.portalurl,
             macaddress: this.macaddress,
@@ -308,11 +339,11 @@ export const useStalkerStore = defineStore("stalker", {
 
         const batchSize = 5;
         for (let i = 1; i <= totalPages; i += batchSize) {
-          this.progress = Math.floor((i / totalPages) * 100);
           const pagePromises = [];
           for (let j = i; j < Math.min(i + batchSize, totalPages + 1); j++) {
             const pagePromise = $fetch("/api/stalker/orderlist", {
               method: "POST",
+              signal,
               body: {
                 portalurl: this.portalurl,
                 macaddress: this.macaddress,
@@ -333,20 +364,29 @@ export const useStalkerStore = defineStore("stalker", {
           }
 
           await Promise.all(pagePromises);
+
+          // Update progress AFTER batch completes
+          const pagesCompleted = Math.min(i + batchSize - 1, totalPages);
+          this.progress = Math.floor((pagesCompleted / totalPages) * 100);
         }
 
         this.progress = 0;
-
-        // Limit items to prevent memory overflow
-        this.moviesItems[cacheKey] = this.limitItemsArray(this.moviesItems[cacheKey]);
 
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
 
         return this.moviesItems[cacheKey];
-      } catch (err) {
+      } catch (err: any) {
+        // Don't throw error if request was aborted (user switched categories)
+        if (err.name === 'AbortError' || err.cause?.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('[Stalker] Movies request aborted');
+          this.progress = 0;
+          return [];
+        }
         console.error("Failed to load movie items:", err);
         throw err;
+      } finally {
+        this.isLoading = false;
       }
     },
 
@@ -370,6 +410,13 @@ export const useStalkerStore = defineStore("stalker", {
     async getSeriesItems(categoryId: number, page = 1) {
       const cacheKey = `${categoryId}_${page}`;
 
+      // Cancel any previous series request
+      if (this.seriesAbortController) {
+        this.seriesAbortController.abort();
+      }
+      this.seriesAbortController = new AbortController();
+      const signal = this.seriesAbortController.signal;
+
       if (this.seriesItems[cacheKey]?.length > 0) {
         this.updateLastAccessed(cacheKey);
         return this.seriesItems[cacheKey];
@@ -380,6 +427,7 @@ export const useStalkerStore = defineStore("stalker", {
 
         const firstPage = await $fetch("/api/stalker/orderlist", {
           method: "POST",
+          signal,
           body: {
             portalurl: this.portalurl,
             macaddress: this.macaddress,
@@ -396,11 +444,11 @@ export const useStalkerStore = defineStore("stalker", {
 
         const batchSize = 5;
         for (let i = 1; i <= totalPages; i += batchSize) {
-          this.progress = Math.floor((i / totalPages) * 100);
           const pagePromises = [];
           for (let j = i; j < Math.min(i + batchSize, totalPages + 1); j++) {
             const pagePromise = $fetch("/api/stalker/orderlist", {
               method: "POST",
+              signal,
               body: {
                 portalurl: this.portalurl,
                 macaddress: this.macaddress,
@@ -421,20 +469,29 @@ export const useStalkerStore = defineStore("stalker", {
           }
 
           await Promise.all(pagePromises);
+
+          // Update progress AFTER batch completes
+          const pagesCompleted = Math.min(i + batchSize - 1, totalPages);
+          this.progress = Math.floor((pagesCompleted / totalPages) * 100);
         }
 
         this.progress = 0;
-
-        // Limit items to prevent memory overflow
-        this.seriesItems[cacheKey] = this.limitItemsArray(this.seriesItems[cacheKey]);
 
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
 
         return this.seriesItems[cacheKey];
-      } catch (err) {
+      } catch (err: any) {
+        // Don't throw error if request was aborted (user switched categories)
+        if (err.name === 'AbortError' || err.cause?.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('[Stalker] Series request aborted');
+          this.progress = 0;
+          return [];
+        }
         console.error("Failed to load series items:", err);
         throw err;
+      } finally {
+        this.isLoading = false;
       }
     },
 
@@ -445,9 +502,17 @@ export const useStalkerStore = defineStore("stalker", {
         return this.seriesSeasons[cacheKey];
       }
 
+      // Cancel any previous series info request
+      if (this.seriesInfoAbortController) {
+        this.seriesInfoAbortController.abort();
+      }
+      this.seriesInfoAbortController = new AbortController();
+      const signal = this.seriesInfoAbortController.signal;
+
       try {
         const seasons = await $fetch("/api/stalker/seasons", {
           method: "POST",
+          signal,
           body: {
             portalurl: this.portalurl,
             macaddress: this.macaddress,
@@ -459,7 +524,11 @@ export const useStalkerStore = defineStore("stalker", {
 
         this.seriesSeasons[cacheKey] = seasons.js?.data || [];
         return this.seriesSeasons[cacheKey];
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError' || err.cause?.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('[Stalker] Series info request aborted');
+          return [];
+        }
         console.error("Failed to load series seasons:", err);
         throw err;
       }
@@ -491,9 +560,17 @@ export const useStalkerStore = defineStore("stalker", {
     },
 
     async createLink(cmd: string, type: string) {
+      // Cancel any previous playback request
+      if (this.playbackAbortController) {
+        this.playbackAbortController.abort();
+      }
+      this.playbackAbortController = new AbortController();
+      const signal = this.playbackAbortController.signal;
+
       try {
         const link = await $fetch("/api/stalker/createlink", {
           method: "POST",
+          signal,
           body: {
             portalurl: this.portalurl,
             macaddress: this.macaddress,
@@ -505,16 +582,28 @@ export const useStalkerStore = defineStore("stalker", {
 
         this.sourceUrl = link.replace(/ /g, "");
         return this.sourceUrl;
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError' || err.cause?.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('[Stalker] Playback request aborted');
+          return null;
+        }
         console.error("Failed to create link:", err);
         throw err;
       }
     },
 
     async createSeriesLink(cmd: string, type: string, id: number) {
+      // Cancel any previous playback request
+      if (this.playbackAbortController) {
+        this.playbackAbortController.abort();
+      }
+      this.playbackAbortController = new AbortController();
+      const signal = this.playbackAbortController.signal;
+
       try {
         const link = await $fetch("/api/stalker/createserieslink", {
           method: "POST",
+          signal,
           body: {
             portalurl: this.portalurl,
             macaddress: this.macaddress,
@@ -527,7 +616,11 @@ export const useStalkerStore = defineStore("stalker", {
 
         this.sourceUrl = link.replace(/ /g, "");
         return this.sourceUrl;
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError' || err.cause?.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('[Stalker] Series playback request aborted');
+          return null;
+        }
         console.error("Failed to create link:", err);
         throw err;
       }
@@ -558,6 +651,33 @@ export const useStalkerStore = defineStore("stalker", {
         movieCategories: moviesCount,
         seriesCategories: seriesCount,
       };
+    },
+
+    // Abort all pending requests
+    abortAllRequests() {
+      if (this.liveAbortController) {
+        this.liveAbortController.abort();
+        this.liveAbortController = null;
+      }
+      if (this.moviesAbortController) {
+        this.moviesAbortController.abort();
+        this.moviesAbortController = null;
+      }
+      if (this.seriesAbortController) {
+        this.seriesAbortController.abort();
+        this.seriesAbortController = null;
+      }
+      if (this.playbackAbortController) {
+        this.playbackAbortController.abort();
+        this.playbackAbortController = null;
+      }
+      if (this.seriesInfoAbortController) {
+        this.seriesInfoAbortController.abort();
+        this.seriesInfoAbortController = null;
+      }
+      this.progress = 0;
+      this.isLoading = false;
+      console.log('[Stalker] All pending requests aborted');
     },
   },
 });

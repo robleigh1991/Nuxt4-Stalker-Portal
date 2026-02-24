@@ -103,6 +103,41 @@
             <UIcon name="i-lucide-check-circle" /> Saved credentials loaded
           </p>
         </div>
+
+        <!-- Saved Accounts Quick Access -->
+        <div v-if="savedAccounts.length > 0" class="mt-8 pt-8 border-t border-white/10">
+          <h3 class="text-sm font-semibold text-gray-400 uppercase mb-4">Quick Access</h3>
+          <div class="space-y-2">
+            <button
+              v-for="account in savedAccounts"
+              :key="account.id"
+              @click="handleQuickLogin(account)"
+              :disabled="isLoading"
+              class="w-full p-4 bg-[#333] hover:bg-[#454545] rounded border border-white/5 hover:border-red-600/50 transition-all flex items-center justify-between gap-4 group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center">
+                  <UIcon
+                    :name="account.providerType === 'stalker' ? 'i-lucide-tv' : 'i-lucide-monitor-play'"
+                    class="w-5 h-5 text-red-600"
+                  />
+                </div>
+                <div class="text-left flex-1 min-w-0">
+                  <p class="font-medium text-white truncate">{{ account.name }}</p>
+                  <div class="flex items-center gap-2 text-xs text-gray-400">
+                    <span class="uppercase">{{ account.providerType }}</span>
+                    <span>•</span>
+                    <span>{{ formatRelativeTime(account.lastUsedAt) }}</span>
+                  </div>
+                </div>
+              </div>
+              <UIcon
+                name="i-lucide-arrow-right"
+                class="w-5 h-5 text-gray-500 group-hover:text-red-600 transition-colors flex-shrink-0"
+              />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -110,6 +145,7 @@
 
 <script setup lang="ts">
 const auth = useAuth();
+const accountsStore = useAccountsStore();
 const toast = useToast();
 
 // Provider type selection
@@ -132,11 +168,15 @@ const credentialsPrefilled = ref(false);
 // Get loading state from auth composable
 const isLoading = computed(() => auth.isLoading.value);
 
+// Saved accounts for quick access
+const savedAccounts = computed(() => accountsStore.recentAccounts);
+
 // Initialize auth on mount
 onMounted(async () => {
   await auth.init();
+  await accountsStore.init();
   rememberMe.value = auth.rememberMe.value;
-  
+
   // If already authenticated, redirect to dashboard
   if (auth.isAuthenticated.value) {
     navigateTo("/dashboard");
@@ -156,10 +196,10 @@ onMounted(async () => {
       xtreamUsername.value = stored.credentials.username || '';
       xtreamPassword.value = stored.credentials.password || '';
     }
-    
+
     credentialsPrefilled.value = true;
     console.log('[Auth] Credentials pre-filled from storage');
-    
+
     // Show notification
     toast.add({
       title: 'Credentials Loaded',
@@ -287,6 +327,38 @@ async function loginXtream() {
     xtreamPassword.value,
     rememberMe.value
   );
+}
+
+// Quick login from saved account
+async function handleQuickLogin(account: any) {
+  try {
+    const success = await auth.switchAccount(account.id);
+
+    if (success) {
+      navigateTo("/dashboard");
+    }
+  } catch (error: any) {
+    console.error('Quick login error:', error);
+    toast.add({
+      title: 'Login Failed',
+      description: error.message || 'Failed to login with saved account',
+      color: 'error',
+    });
+  }
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'now';
 }
 </script>
 

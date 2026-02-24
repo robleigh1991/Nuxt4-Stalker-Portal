@@ -274,6 +274,101 @@ export const useAuth = () => {
     return !!(stalkerStore.token || xtreamStore.isAuthenticated);
   });
 
+  /**
+   * Switch to a different account
+   */
+  const switchAccount = async (accountId: string): Promise<boolean> => {
+    const accountsStore = useAccountsStore();
+
+    try {
+      // Get account metadata
+      const account = accountsStore.accounts.find(acc => acc.id === accountId);
+      if (!account) {
+        toast.add({
+          title: 'Error',
+          description: 'Account not found',
+          color: 'error',
+        });
+        return false;
+      }
+
+      // Load encrypted credentials
+      const credentials = await accountsStore.getAccountCredentials(accountId);
+      if (!credentials) {
+        toast.add({
+          title: 'Error',
+          description: 'Failed to load account credentials',
+          color: 'error',
+        });
+        return false;
+      }
+
+      isLoading.value = true;
+
+      // Logout current session (but keep saved accounts)
+      if (stalkerStore.token) {
+        stalkerStore.$reset();
+      }
+      if (xtreamStore.isAuthenticated) {
+        xtreamStore.logout();
+      }
+
+      // Login with new credentials
+      let loginSuccess = false;
+
+      if (account.providerType === 'stalker') {
+        const stalkerCreds = credentials as StalkerCredentials;
+        loginSuccess = await loginStalker(
+          stalkerCreds.portalUrl,
+          stalkerCreds.macAddress,
+          false // Don't save to legacy storage
+        );
+      } else if (account.providerType === 'xtream') {
+        const xtreamCreds = credentials as XtreamCredentials;
+        loginSuccess = await loginXtream(
+          xtreamCreds.serverUrl,
+          xtreamCreds.username,
+          xtreamCreds.password,
+          false // Don't save to legacy storage
+        );
+      }
+
+      if (loginSuccess) {
+        // Set as active account
+        accountsStore.setActiveAccount(accountId);
+
+        // Reload per-account stores
+        const favoritesStore = useFavoritesStore();
+        const watchHistoryStore = useWatchHistoryStore();
+        const channelMgmtStore = useChannelManagementStore();
+
+        favoritesStore.reloadForAccount();
+        watchHistoryStore.reloadForAccount();
+        channelMgmtStore.reloadForAccount();
+
+        toast.add({
+          title: 'Account Switched',
+          description: `Switched to ${account.name}`,
+          color: 'success',
+        });
+
+        return true;
+      }
+
+      return false;
+    } catch (error: any) {
+      console.error('Failed to switch account:', error);
+      toast.add({
+        title: 'Switch Failed',
+        description: error.message || 'Failed to switch account',
+        color: 'error',
+      });
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     isLoading: readonly(isLoading),
     rememberMe,
@@ -283,6 +378,7 @@ export const useAuth = () => {
     loginStalker,
     loginXtream,
     logout,
+    switchAccount,
     clearStoredCredentials,
     hasStoredAuth,
     getCurrentProvider,

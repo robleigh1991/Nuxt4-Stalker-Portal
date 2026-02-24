@@ -48,10 +48,10 @@
       <div class="flex items-center gap-4">
         <img
           v-if="currentChannel.logo || currentChannel.screenshot_uri"
-          :src="currentChannel.logo || currentChannel.screenshot_uri"
+          :src="proxiedChannelLogo"
           :alt="currentChannel.name"
           class="w-12 h-12 rounded-lg object-contain bg-gray-700 p-1"
-          onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'"
+          :onerror="`this.onerror=null; this.src='${placeholderImage}'`"
         />
         <div class="flex-1">
           <div class="flex items-center justify-between mb-1">
@@ -85,7 +85,10 @@
 <script setup lang="ts">
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
+const settings = useSettingsStore();
+const watchHistory = useWatchHistoryStore();
 const toast = useToast();
+const { proxyImage, getPlaceholder } = useImageProxy();
 
 const providerType = computed(() => {
   if (stalker.token) return "stalker";
@@ -112,6 +115,19 @@ const modalOpen = computed(() => {
     : xtream.modalOpen;
 });
 
+const placeholderImage = computed(() => getPlaceholder());
+
+const proxiedChannelLogo = computed(() => {
+  const logoUrl = currentChannel.value?.logo || currentChannel.value?.screenshot_uri;
+  if (!logoUrl) return getPlaceholder();
+  return proxyImage(logoUrl, {
+    width: 96,
+    height: 96,
+    quality: 80,
+    fit: 'contain',
+  });
+});
+
 
 
 const videoElement = ref<HTMLVideoElement | null>(null);
@@ -121,6 +137,14 @@ const currentTime = ref(Date.now());
 
 // Timer for current program updates
 let timeUpdateInterval: NodeJS.Timeout;
+
+// Auto-play next episode tracking
+let autoPlayTimeout: NodeJS.Timeout | null = null;
+let autoPlayCountdownInterval: NodeJS.Timeout | null = null;
+const autoPlayCountdown = ref(0);
+
+// Resume playback flag - prevent multiple resume attempts
+let hasResumed = false;
 
 // Current EPG Data helper
 const currentEPGData = computed(() => {
@@ -632,6 +656,109 @@ const loadSource = async (url: string) => {
   });
 };
 
+/**
+ * Handle video ended event for auto-play next episode
+ */
+const handleVideoEnded = async () => {
+  if (!isComponentMounted.value) return;
+
+  console.log("[VideoPlayer] Video ended");
+
+  // Check if auto-play is enabled
+  if (!settings.autoPlayNextEpisode) {
+    console.log("[VideoPlayer] Auto-play disabled");
+    return;
+  }
+
+  // Check if we're watching a series episode
+  const currentEpisode =
+    providerType.value === "stalker"
+      ? stalker.currentEpisode
+      : xtream.currentEpisode;
+
+  if (!currentEpisode) {
+    console.log("[VideoPlayer] Not watching a series episode");
+    return;
+  }
+
+  // Get the next episode using a temporary instance of useSeriesDetails
+  // We need to create a dummy ref for selectedTab since we don't use it for getNextEpisode
+  const { getNextEpisode } = useSeriesDetails(ref("series"));
+
+  const nextEpisode = getNextEpisode(
+    currentEpisode.seasonNumber!,
+    currentEpisode.episodeNumber!
+  );
+
+  if (!nextEpisode) {
+    console.log("[VideoPlayer] No next episode, series finished");
+    toast.add({
+      title: "Series Finished",
+      description: "You've reached the end of this series.",
+      color: "blue",
+      timeout: 5000,
+    });
+    return;
+  }
+
+  // Show countdown toast
+  console.log("[VideoPlayer] Starting auto-play countdown");
+  autoPlayCountdown.value = 10;
+
+  const toastId = toast.add({
+    title: "Auto-playing next episode",
+    description: `Playing next episode in ${autoPlayCountdown.value} seconds...`,
+    color: "primary",
+    timeout: 0,
+    actions: [
+      {
+        label: "Cancel",
+        click: () => {
+          console.log("[VideoPlayer] Auto-play cancelled by user");
+          if (autoPlayTimeout) clearTimeout(autoPlayTimeout);
+          if (autoPlayCountdownInterval) clearInterval(autoPlayCountdownInterval);
+          autoPlayCountdown.value = 0;
+        },
+      },
+    ],
+  });
+
+  // Update countdown every second
+  autoPlayCountdownInterval = setInterval(() => {
+    autoPlayCountdown.value--;
+    if (autoPlayCountdown.value > 0) {
+      // Update toast description
+      toast.update(toastId, {
+        description: `Playing next episode in ${autoPlayCountdown.value} seconds...`,
+      });
+    } else {
+      clearInterval(autoPlayCountdownInterval!);
+      autoPlayCountdownInterval = null;
+    }
+  }, 1000);
+
+  // Set timeout to auto-play after 10 seconds
+  autoPlayTimeout = setTimeout(async () => {
+    if (!isComponentMounted.value) return;
+
+    console.log("[VideoPlayer] Auto-playing next episode:", nextEpisode);
+
+    // Remove countdown toast
+    toast.remove(toastId);
+
+    // Import and use playEpisode from useSeriesDetails
+    const { playEpisode } = useSeriesDetails(ref("series"));
+    await playEpisode(nextEpisode);
+
+    // Clear intervals
+    if (autoPlayCountdownInterval) {
+      clearInterval(autoPlayCountdownInterval);
+      autoPlayCountdownInterval = null;
+    }
+    autoPlayTimeout = null;
+  }, 10000);
+};
+
 onMounted(async () => {
   isComponentMounted.value = true;
 
@@ -684,20 +811,154 @@ onMounted(async () => {
         if (isLoading.value && !player.paused) {
           isLoading.value = false;
         }
+
+        // Check for resume playback (VOD/Movies/Series only) - ONLY ONCE per video
+        if (!hasResumed && currentChannel.value && player.duration > 0 && player.currentTime < 5) {
+          let contentType: 'live' | 'movies' | 'series' = 'live';
+          if (providerType.value === 'stalker') {
+            if (stalker.currentMovie) contentType = 'movies';
+            else if (stalker.currentSeries || stalker.currentEpisode) contentType = 'series';
+          } else if (providerType.value === 'xtream') {
+            if (xtream.sourceUrl?.includes('/movie/')) contentType = 'movies';
+            else if (xtream.sourceUrl?.includes('/series/')) contentType = 'series';
+          }
+
+          if (contentType !== 'live') {
+            // Generate itemId (same logic as in timeupdate)
+            let itemId = '';
+            if (providerType.value === 'stalker') {
+              const itemData = stalker.currentMovie || stalker.currentSeries;
+              itemId = `stalker_${contentType}_${itemData?.id || currentChannel.value.id}`;
+              if (stalker.currentEpisode) {
+                itemId += `_s${stalker.currentEpisode.seasonNumber}_e${stalker.currentEpisode.episodeNumber}`;
+              }
+            } else if (providerType.value === 'xtream') {
+              itemId = `xtream_${contentType}_${currentChannel.value.stream_id || currentChannel.value.series_id}`;
+              if (xtream.currentEpisode) {
+                itemId += `_s${xtream.currentEpisode.seasonNumber}_e${xtream.currentEpisode.episodeNumber}`;
+              }
+            }
+
+            // Check if should resume
+            if (watchHistory.shouldResume(itemId)) {
+              const resumePosition = watchHistory.getResumePosition(itemId);
+              const progress = watchHistory.getProgress(itemId);
+
+              if (resumePosition > 0 && progress) {
+                // Mark as resumed to prevent multiple attempts
+                hasResumed = true;
+
+                // Seek to resume position
+                player.currentTime = resumePosition;
+
+                // Show toast notification
+                toast.add({
+                  title: 'Resuming Playback',
+                  description: `Continuing from ${Math.floor(progress.progress)}%`,
+                  color: 'primary',
+                  timeout: 3000,
+                });
+              }
+            }
+          }
+        }
+      });
+
+      // Auto-play next episode when video ends
+      player.on("ended", handleVideoEnded);
+
+      // Track watch history progress (for VOD/Movies/Series only)
+      let lastProgressUpdate = 0;
+      player.on("timeupdate", () => {
+        if (!isComponentMounted.value || !currentChannel.value) return;
+
+        const now = Date.now();
+        // Update progress every 10 seconds
+        if (now - lastProgressUpdate < 10000) return;
+        lastProgressUpdate = now;
+
+        const currentTime = player.currentTime;
+        const duration = player.duration;
+
+        if (!duration || duration === 0 || isNaN(duration) || isNaN(currentTime)) return;
+
+        // Determine content type
+        let contentType: 'live' | 'movies' | 'series' = 'live';
+        if (providerType.value === 'stalker') {
+          if (stalker.currentMovie) contentType = 'movies';
+          else if (stalker.currentSeries || stalker.currentEpisode) contentType = 'series';
+        } else if (providerType.value === 'xtream') {
+          // Check if it's a VOD or Series based on URL or current stream type
+          if (xtream.sourceUrl?.includes('/movie/')) contentType = 'movies';
+          else if (xtream.sourceUrl?.includes('/series/')) contentType = 'series';
+        }
+
+        // Skip tracking for live TV
+        if (contentType === 'live') return;
+
+        // Generate unique ID for the item
+        let itemId = '';
+        let itemName = currentChannel.value.name || 'Unknown';
+        let itemImage = currentChannel.value.logo || currentChannel.value.screenshot_uri || currentChannel.value.stream_icon;
+
+        if (providerType.value === 'stalker') {
+          const itemData = stalker.currentMovie || stalker.currentSeries;
+          itemId = `stalker_${contentType}_${itemData?.id || currentChannel.value.id}`;
+          if (stalker.currentEpisode) {
+            itemId += `_s${stalker.currentEpisode.seasonNumber}_e${stalker.currentEpisode.episodeNumber}`;
+            itemName = `${itemName} - S${stalker.currentEpisode.seasonNumber}E${stalker.currentEpisode.episodeNumber}`;
+          }
+        } else if (providerType.value === 'xtream') {
+          itemId = `xtream_${contentType}_${currentChannel.value.stream_id || currentChannel.value.series_id}`;
+          if (xtream.currentEpisode) {
+            itemId += `_s${xtream.currentEpisode.seasonNumber}_e${xtream.currentEpisode.episodeNumber}`;
+            itemName = `${itemName} - S${xtream.currentEpisode.seasonNumber}E${xtream.currentEpisode.episodeNumber}`;
+          }
+        }
+
+        // Update watch history
+        watchHistory.updateProgress(
+          itemId,
+          providerType.value as 'stalker' | 'xtream',
+          contentType,
+          itemName,
+          currentTime,
+          duration,
+          currentChannel.value,
+          itemImage
+        );
       });
 
       videoElement.value.addEventListener("error", handleError);
-      
-      // Add additional error listener for network issues
+
+      // Add debounced stall warning (only show after 15 seconds of stalling)
+      let stallTimeout: NodeJS.Timeout | null = null;
       videoElement.value.addEventListener("stalled", () => {
         if (!isComponentMounted.value) return;
-        console.warn("[VideoPlayer] Stream stalled - network issue");
-        toast.add({
-          title: "Buffering Issue",
-          description: "Stream is experiencing network issues. Trying to recover...",
-          color: "warning",
-          timeout: 3000,
-        });
+        console.log("[VideoPlayer] Stream stalled - waiting to see if it recovers...");
+
+        // Clear previous timeout
+        if (stallTimeout) clearTimeout(stallTimeout);
+
+        // Only show warning if still stalled after 15 seconds
+        stallTimeout = setTimeout(() => {
+          if (!isComponentMounted.value) return;
+          console.warn("[VideoPlayer] Stream stalled for 15s - showing warning");
+          toast.add({
+            title: "Buffering Issue",
+            description: "Stream is taking longer than usual to load. Please wait...",
+            color: "warning",
+            timeout: 5000,
+          });
+        }, 15000); // 15 seconds delay
+      });
+
+      // Clear stall timeout when playback starts
+      videoElement.value.addEventListener("playing", () => {
+        if (stallTimeout) {
+          clearTimeout(stallTimeout);
+          stallTimeout = null;
+        }
       });
       
       console.log("[VideoPlayer] Plyr initialized");
@@ -724,6 +985,9 @@ onMounted(async () => {
     if (!newUrl.includes('.m3u8') || !oldUrl.includes('.ts')) {
       hasTriedM3u8Fallback = false;
     }
+
+    // Reset resume flag for new video
+    hasResumed = false;
 
     if (player && videoElement.value) {
       await loadSource(newUrl);
@@ -756,6 +1020,16 @@ onUnmounted(() => {
   // Stop timer
   if (timeUpdateInterval) {
     clearInterval(timeUpdateInterval);
+  }
+
+  // Clear auto-play timers
+  if (autoPlayTimeout) {
+    clearTimeout(autoPlayTimeout);
+    autoPlayTimeout = null;
+  }
+  if (autoPlayCountdownInterval) {
+    clearInterval(autoPlayCountdownInterval);
+    autoPlayCountdownInterval = null;
   }
 
   // Stop watcher first
