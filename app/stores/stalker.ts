@@ -177,14 +177,6 @@ export const useStalkerStore = defineStore("stalker", {
       console.log('[Cache] Stalker cache refreshed');
     },
 
-    /**
-     * Clear all cache for this account
-     */
-    clearCache() {
-      apiCache.clear();
-      console.log('[Cache] Cleared Stalker cache');
-    },
-
     async getAllInfo() {
       await Promise.all([
         this.getLiveCategories(),
@@ -751,13 +743,18 @@ export const useStalkerStore = defineStore("stalker", {
     },
 
     clearCache() {
+      // Clear memory cache
       this.liveItems = {};
       this.moviesItems = {};
       this.seriesItems = {};
       this.seriesSeasons = {};
       this.seriesEpisodes = {};
       this.cacheConfig.lastAccessed = {};
-      console.log('[Memory] Cleared all cache');
+
+      // Clear persistent cache
+      apiCache.clear();
+
+      console.log('[Cache] Cleared all cache (memory + persistent)');
     },
 
     getCacheStats() {
