@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { apiCache } from "~/utils/cache";
 
 export const useXtreamStore = defineStore("xtream", {
   state: () => ({
@@ -152,6 +153,10 @@ export const useXtreamStore = defineStore("xtream", {
         this.isLoading = true;
         this.error = null;
 
+        // Set account ID for cache isolation
+        const accountsStore = useAccountsStore();
+        apiCache.setAccountId(accountsStore.activeAccountId);
+
         // Clean server URL (remove trailing slash)
         const cleanUrl = serverUrl.trim().replace(/\/+$/, "");
 
@@ -184,7 +189,19 @@ export const useXtreamStore = defineStore("xtream", {
     // ==========================================
     // LIVE TV
     // ==========================================
-    async getLiveCategories() {
+    async getLiveCategories(forceRefresh = false) {
+      const cacheKey = 'categories_live';
+
+      // Try cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(cacheKey);
+        if (cached) {
+          this.liveCategories = cached;
+          console.log('[Cache] Loaded live categories from cache');
+          return this.liveCategories;
+        }
+      }
+
       try {
         const categories = await $fetch("/api/xtream/live-categories", {
           method: "POST",
@@ -196,6 +213,11 @@ export const useXtreamStore = defineStore("xtream", {
         });
 
         this.liveCategories = categories || [];
+
+        // Cache for 24 hours
+        apiCache.set(cacheKey, this.liveCategories, 24 * 60);
+        console.log('[Cache] Cached live categories');
+
         return this.liveCategories;
       } catch (err) {
         console.error("Failed to load live categories:", err);
@@ -248,7 +270,19 @@ export const useXtreamStore = defineStore("xtream", {
     // ==========================================
     // VOD (Movies)
     // ==========================================
-    async getVodCategories() {
+    async getVodCategories(forceRefresh = false) {
+      const cacheKey = 'categories_vod';
+
+      // Try cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(cacheKey);
+        if (cached) {
+          this.vodCategories = cached;
+          console.log('[Cache] Loaded VOD categories from cache');
+          return this.vodCategories;
+        }
+      }
+
       try {
         const categories = await $fetch("/api/xtream/vod-categories", {
           method: "POST",
@@ -260,6 +294,11 @@ export const useXtreamStore = defineStore("xtream", {
         });
 
         this.vodCategories = categories || [];
+
+        // Cache for 24 hours
+        apiCache.set(cacheKey, this.vodCategories, 24 * 60);
+        console.log('[Cache] Cached VOD categories');
+
         return this.vodCategories;
       } catch (err) {
         console.error("Failed to load VOD categories:", err);
@@ -330,7 +369,19 @@ export const useXtreamStore = defineStore("xtream", {
     // ==========================================
     // SERIES
     // ==========================================
-    async getSeriesCategories() {
+    async getSeriesCategories(forceRefresh = false) {
+      const cacheKey = 'categories_series';
+
+      // Try cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(cacheKey);
+        if (cached) {
+          this.seriesCategories = cached;
+          console.log('[Cache] Loaded series categories from cache');
+          return this.seriesCategories;
+        }
+      }
+
       try {
         const categories = await $fetch("/api/xtream/series-categories", {
           method: "POST",
@@ -342,6 +393,11 @@ export const useXtreamStore = defineStore("xtream", {
         });
 
         this.seriesCategories = categories || [];
+
+        // Cache for 24 hours
+        apiCache.set(cacheKey, this.seriesCategories, 24 * 60);
+        console.log('[Cache] Cached series categories');
+
         return this.seriesCategories;
       } catch (err) {
         console.error("Failed to load series categories:", err);
@@ -502,9 +558,30 @@ export const useXtreamStore = defineStore("xtream", {
       this.liveCategories = null;
       this.vodCategories = null;
       this.seriesCategories = null;
-      this.clearCache();
+      this.clearAllCache();
       this.currentStream = null;
       this.sourceUrl = null;
+    },
+
+    /**
+     * Refresh cache for current data
+     */
+    async refreshCache() {
+      console.log('[Cache] Refreshing Xtream cache...');
+      await Promise.all([
+        this.getLiveCategories(true),
+        this.getVodCategories(true),
+        this.getSeriesCategories(true),
+      ]);
+      console.log('[Cache] Xtream cache refreshed');
+    },
+
+    /**
+     * Clear persistent cache for this account
+     */
+    clearAllCache() {
+      apiCache.clear();
+      console.log('[Cache] Cleared Xtream cache');
     },
   },
 });

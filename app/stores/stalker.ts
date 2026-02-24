@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { apiCache } from "~/utils/cache";
 
 export const useStalkerStore = defineStore("stalker", {
   state: () => ({
@@ -127,6 +128,10 @@ export const useStalkerStore = defineStore("stalker", {
         this.isLoading = true;
         this.error = null;
 
+        // Set account ID for cache isolation
+        const accountsStore = useAccountsStore();
+        apiCache.setAccountId(accountsStore.activeAccountId);
+
         // Normalize the portal URL
         let normalizedUrl = portalurl.trim().replace(/\/+$/, "");
 
@@ -159,6 +164,27 @@ export const useStalkerStore = defineStore("stalker", {
       }
     },
 
+    /**
+     * Refresh cache for current data
+     */
+    async refreshCache() {
+      console.log('[Cache] Refreshing Stalker cache...');
+      await Promise.all([
+        this.getLiveCategories(true),
+        this.getMoviesCategories(true),
+        this.getSeriesCategories(true),
+      ]);
+      console.log('[Cache] Stalker cache refreshed');
+    },
+
+    /**
+     * Clear all cache for this account
+     */
+    clearCache() {
+      apiCache.clear();
+      console.log('[Cache] Cleared Stalker cache');
+    },
+
     async getAllInfo() {
       await Promise.all([
         this.getLiveCategories(),
@@ -174,7 +200,19 @@ export const useStalkerStore = defineStore("stalker", {
       return "done";
     },
 
-    async getLiveCategories() {
+    async getLiveCategories(forceRefresh = false) {
+      const cacheKey = 'categories_live';
+
+      // Try cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(cacheKey);
+        if (cached) {
+          this.liveCategories = cached;
+          console.log('[Cache] Loaded live categories from cache');
+          return;
+        }
+      }
+
       try {
         const categories = await $fetch("/api/stalker/itv", {
           method: "POST",
@@ -185,14 +223,19 @@ export const useStalkerStore = defineStore("stalker", {
           },
         });
         this.liveCategories = categories.js || [];
+
+        // Cache for 24 hours
+        apiCache.set(cacheKey, this.liveCategories, 24 * 60);
+        console.log('[Cache] Cached live categories');
       } catch (err) {
         console.error("Failed to load live categories:", err);
         throw err;
       }
     },
 
-    async getLiveItems(genreId: number, page = 1) {
+    async getLiveItems(genreId: number, page = 1, forceRefresh = false) {
       const cacheKey = `${genreId}_${page}`;
+      const persistentCacheKey = `live_items_${genreId}`;
 
       // Cancel any previous live items request
       if (this.liveAbortController) {
@@ -201,10 +244,21 @@ export const useStalkerStore = defineStore("stalker", {
       this.liveAbortController = new AbortController();
       const signal = this.liveAbortController.signal;
 
-      // Return cached items if available
-      if (this.liveItems[cacheKey]?.length > 0) {
+      // Return memory cached items if available
+      if (!forceRefresh && this.liveItems[cacheKey]?.length > 0) {
         this.updateLastAccessed(cacheKey);
         return this.liveItems[cacheKey];
+      }
+
+      // Try persistent cache (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(persistentCacheKey);
+        if (cached && cached.length > 0) {
+          this.liveItems[cacheKey] = cached;
+          this.updateLastAccessed(cacheKey);
+          console.log(`[Cache] Loaded ${cached.length} live items from cache`);
+          return cached;
+        }
       }
 
       try {
@@ -270,6 +324,10 @@ export const useStalkerStore = defineStore("stalker", {
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
 
+        // Cache items for 12 hours
+        apiCache.set(persistentCacheKey, this.liveItems[cacheKey], 12 * 60);
+        console.log(`[Cache] Cached ${this.liveItems[cacheKey].length} live items`);
+
         return this.liveItems[cacheKey];
       } catch (err: any) {
         // Don't throw error if request was aborted (user switched categories)
@@ -285,7 +343,19 @@ export const useStalkerStore = defineStore("stalker", {
       }
     },
 
-    async getMoviesCategories() {
+    async getMoviesCategories(forceRefresh = false) {
+      const cacheKey = 'categories_movies';
+
+      // Try cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(cacheKey);
+        if (cached) {
+          this.moviesCategories = cached;
+          console.log('[Cache] Loaded movie categories from cache');
+          return;
+        }
+      }
+
       try {
         const categories = await $fetch("/api/stalker/vod", {
           method: "POST",
@@ -296,14 +366,19 @@ export const useStalkerStore = defineStore("stalker", {
           },
         });
         this.moviesCategories = categories.js || [];
+
+        // Cache for 24 hours
+        apiCache.set(cacheKey, this.moviesCategories, 24 * 60);
+        console.log('[Cache] Cached movie categories');
       } catch (err) {
         console.error("Failed to load movie categories:", err);
         throw err;
       }
     },
 
-    async getMoviesItems(categoryId: number, page = 1) {
+    async getMoviesItems(categoryId: number, page = 1, forceRefresh = false) {
       const cacheKey = `${categoryId}_${page}`;
+      const persistentCacheKey = `movies_items_${categoryId}`;
 
       // Cancel any previous movies request
       if (this.moviesAbortController) {
@@ -312,9 +387,21 @@ export const useStalkerStore = defineStore("stalker", {
       this.moviesAbortController = new AbortController();
       const signal = this.moviesAbortController.signal;
 
-      if (this.moviesItems[cacheKey]?.length > 0) {
+      // Return memory cached items if available
+      if (!forceRefresh && this.moviesItems[cacheKey]?.length > 0) {
         this.updateLastAccessed(cacheKey);
         return this.moviesItems[cacheKey];
+      }
+
+      // Try persistent cache (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(persistentCacheKey);
+        if (cached && cached.length > 0) {
+          this.moviesItems[cacheKey] = cached;
+          this.updateLastAccessed(cacheKey);
+          console.log(`[Cache] Loaded ${cached.length} movie items from cache`);
+          return cached;
+        }
       }
 
       try {
@@ -375,6 +462,10 @@ export const useStalkerStore = defineStore("stalker", {
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
 
+        // Cache items for 12 hours
+        apiCache.set(persistentCacheKey, this.moviesItems[cacheKey], 12 * 60);
+        console.log(`[Cache] Cached ${this.moviesItems[cacheKey].length} movie items`);
+
         return this.moviesItems[cacheKey];
       } catch (err: any) {
         // Don't throw error if request was aborted (user switched categories)
@@ -390,7 +481,19 @@ export const useStalkerStore = defineStore("stalker", {
       }
     },
 
-    async getSeriesCategories() {
+    async getSeriesCategories(forceRefresh = false) {
+      const cacheKey = 'categories_series';
+
+      // Try cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(cacheKey);
+        if (cached) {
+          this.seriesCategories = cached;
+          console.log('[Cache] Loaded series categories from cache');
+          return;
+        }
+      }
+
       try {
         const categories = await $fetch("/api/stalker/series", {
           method: "POST",
@@ -401,14 +504,19 @@ export const useStalkerStore = defineStore("stalker", {
           },
         });
         this.seriesCategories = categories.js || [];
+
+        // Cache for 24 hours
+        apiCache.set(cacheKey, this.seriesCategories, 24 * 60);
+        console.log('[Cache] Cached series categories');
       } catch (err) {
         console.error("Failed to load series categories:", err);
         throw err;
       }
     },
 
-    async getSeriesItems(categoryId: number, page = 1) {
+    async getSeriesItems(categoryId: number, page = 1, forceRefresh = false) {
       const cacheKey = `${categoryId}_${page}`;
+      const persistentCacheKey = `series_items_${categoryId}`;
 
       // Cancel any previous series request
       if (this.seriesAbortController) {
@@ -417,9 +525,21 @@ export const useStalkerStore = defineStore("stalker", {
       this.seriesAbortController = new AbortController();
       const signal = this.seriesAbortController.signal;
 
-      if (this.seriesItems[cacheKey]?.length > 0) {
+      // Return memory cached items if available
+      if (!forceRefresh && this.seriesItems[cacheKey]?.length > 0) {
         this.updateLastAccessed(cacheKey);
         return this.seriesItems[cacheKey];
+      }
+
+      // Try persistent cache (unless force refresh)
+      if (!forceRefresh) {
+        const cached = apiCache.get<any[]>(persistentCacheKey);
+        if (cached && cached.length > 0) {
+          this.seriesItems[cacheKey] = cached;
+          this.updateLastAccessed(cacheKey);
+          console.log(`[Cache] Loaded ${cached.length} series items from cache`);
+          return cached;
+        }
       }
 
       try {
@@ -479,6 +599,10 @@ export const useStalkerStore = defineStore("stalker", {
 
         // Update last accessed time
         this.updateLastAccessed(cacheKey);
+
+        // Cache items for 12 hours
+        apiCache.set(persistentCacheKey, this.seriesItems[cacheKey], 12 * 60);
+        console.log(`[Cache] Cached ${this.seriesItems[cacheKey].length} series items`);
 
         return this.seriesItems[cacheKey];
       } catch (err: any) {
