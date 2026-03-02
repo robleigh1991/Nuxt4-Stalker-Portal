@@ -153,10 +153,6 @@ export const useXtreamStore = defineStore("xtream", {
         this.isLoading = true;
         this.error = null;
 
-        // Set account ID for cache isolation
-        const accountsStore = useAccountsStore();
-        apiCache.setAccountId(accountsStore.activeAccountId);
-
         // Clean server URL (remove trailing slash)
         const cleanUrl = serverUrl.trim().replace(/\/+$/, "");
 

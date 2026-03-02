@@ -128,10 +128,6 @@ export const useStalkerStore = defineStore("stalker", {
         this.isLoading = true;
         this.error = null;
 
-        // Set account ID for cache isolation
-        const accountsStore = useAccountsStore();
-        apiCache.setAccountId(accountsStore.activeAccountId);
-
         // Normalize the portal URL
         let normalizedUrl = portalurl.trim().replace(/\/+$/, "");
 

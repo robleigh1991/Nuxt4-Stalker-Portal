@@ -91,25 +91,30 @@ export const useAuth = () => {
         xtreamStore.logout();
       }
 
-      // Authenticate
+      // Normalize portal URL (same normalization as in store)
+      let normalizedPortalUrl = portalUrl.trim().replace(/\/+$/, '');
+      if (!normalizedPortalUrl.endsWith('/c')) {
+        normalizedPortalUrl += '/c';
+      }
+
+      // Authenticate (handshake only, don't load data yet)
       const result = await stalkerStore.makeHandshake(portalUrl, macAddress);
 
       if (!result?.success) {
         throw new Error('Authentication failed');
       }
 
-      // Load initial data
-      await stalkerStore.getAllInfo();
-
-      // Find or create account in multi-account system
-      const credentials = { portalUrl, macAddress };
+      // Find or create account in multi-account system BEFORE loading data
+      // Use normalized URL to prevent duplicates
+      const credentials = { portalUrl: normalizedPortalUrl, macAddress: macAddress.trim() };
       let accountId: string | null = null;
 
-      // Check if account already exists by comparing credentials
+      // Check if account already exists by comparing normalized credentials
       const stalkerAccounts = accountsStore.accounts.filter(acc => acc.providerType === 'stalker');
       for (const account of stalkerAccounts) {
         const existingCreds = await accountsStore.getAccountCredentials(account.id) as any;
-        if (existingCreds?.portalUrl === portalUrl && existingCreds?.macAddress === macAddress) {
+        if (existingCreds?.portalUrl === normalizedPortalUrl &&
+            existingCreds?.macAddress === macAddress.trim()) {
           accountId = account.id;
           break;
         }
@@ -117,7 +122,7 @@ export const useAuth = () => {
 
       // Create new account if not found
       if (!accountId) {
-        const hostname = new URL(portalUrl).hostname;
+        const hostname = new URL(normalizedPortalUrl).hostname;
         const accountName = `Stalker - ${hostname}`;
         const result = await accountsStore.addAccount(accountName, 'stalker', credentials);
         if (result.success && result.accountId) {
@@ -125,11 +130,19 @@ export const useAuth = () => {
         }
       }
 
-      // Set as active account
+      // Set as active account BEFORE loading data so cache uses correct prefix
       if (accountId) {
         accountsStore.setActiveAccount(accountId);
 
-        // Reload per-account stores
+        // Update cache account ID to use the correct prefix
+        apiCache.setAccountId(accountId);
+      }
+
+      // NOW load initial data with correct cache account ID
+      await stalkerStore.getAllInfo();
+
+      // Reload per-account stores
+      if (accountId) {
         const favoritesStore = useFavoritesStore();
         const watchHistoryStore = useWatchHistoryStore();
         const channelMgmtStore = useChannelManagementStore();
@@ -185,31 +198,32 @@ export const useAuth = () => {
         stalkerStore.$reset();
       }
 
-      // Authenticate
+      // Normalize server URL (same normalization as in store)
+      const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
+
+      // Authenticate (don't load data yet)
       const result = await xtreamStore.authenticate(serverUrl, username, password);
 
       if (!result?.success) {
         throw new Error('Authentication failed');
       }
 
-      // Load initial data
-      await Promise.all([
-        xtreamStore.getLiveCategories(),
-        xtreamStore.getVodCategories(),
-        xtreamStore.getSeriesCategories(),
-      ]);
-
-      // Find or create account in multi-account system
-      const credentials = { serverUrl, username, password };
+      // Find or create account in multi-account system BEFORE loading data
+      // Use normalized values to prevent duplicates
+      const credentials = {
+        serverUrl: normalizedServerUrl,
+        username: username.trim(),
+        password: password.trim()
+      };
       let accountId: string | null = null;
 
-      // Check if account already exists by comparing credentials
+      // Check if account already exists by comparing normalized credentials
       const xtreamAccounts = accountsStore.accounts.filter(acc => acc.providerType === 'xtream');
       for (const account of xtreamAccounts) {
         const existingCreds = await accountsStore.getAccountCredentials(account.id) as any;
-        if (existingCreds?.serverUrl === serverUrl &&
-            existingCreds?.username === username &&
-            existingCreds?.password === password) {
+        if (existingCreds?.serverUrl === normalizedServerUrl &&
+            existingCreds?.username === username.trim() &&
+            existingCreds?.password === password.trim()) {
           accountId = account.id;
           break;
         }
@@ -217,7 +231,7 @@ export const useAuth = () => {
 
       // Create new account if not found
       if (!accountId) {
-        const hostname = new URL(serverUrl).hostname;
+        const hostname = new URL(normalizedServerUrl).hostname;
         const accountName = `Xtream - ${hostname}`;
         const result = await accountsStore.addAccount(accountName, 'xtream', credentials);
         if (result.success && result.accountId) {
@@ -225,11 +239,23 @@ export const useAuth = () => {
         }
       }
 
-      // Set as active account
+      // Set as active account BEFORE loading data so cache uses correct prefix
       if (accountId) {
         accountsStore.setActiveAccount(accountId);
 
-        // Reload per-account stores
+        // Update cache account ID to use the correct prefix
+        apiCache.setAccountId(accountId);
+      }
+
+      // NOW load initial data with correct cache account ID
+      await Promise.all([
+        xtreamStore.getLiveCategories(),
+        xtreamStore.getVodCategories(),
+        xtreamStore.getSeriesCategories(),
+      ]);
+
+      // Reload per-account stores
+      if (accountId) {
         const favoritesStore = useFavoritesStore();
         const watchHistoryStore = useWatchHistoryStore();
         const channelMgmtStore = useChannelManagementStore();
@@ -432,18 +458,7 @@ export const useAuth = () => {
       }
 
       if (loginSuccess) {
-        // Set as active account
-        accountsStore.setActiveAccount(accountId);
-
-        // Reload per-account stores
-        const favoritesStore = useFavoritesStore();
-        const watchHistoryStore = useWatchHistoryStore();
-        const channelMgmtStore = useChannelManagementStore();
-
-        favoritesStore.reloadForAccount();
-        watchHistoryStore.reloadForAccount();
-        channelMgmtStore.reloadForAccount();
-
+        // Note: loginStalker/loginXtream already set active account and reloaded stores
         toast.add({
           title: 'Account Switched',
           description: `Switched to ${account.name}`,
