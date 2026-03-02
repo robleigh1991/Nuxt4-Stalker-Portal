@@ -8,8 +8,9 @@
 import type { ProviderType, StoredCredentials, SessionData } from '~/types/app';
 import type { StalkerCredentials } from '~/types/stalker';
 import type { XtreamCredentials } from '~/types/xtream';
+import { apiCache } from '~/utils/cache';
 
-// Note: storeCredentials, retrieveCredentials, removeCredentials, hasStoredCredentials 
+// Note: storeCredentials, retrieveCredentials, removeCredentials, hasStoredCredentials
 // are auto-imported from app/utils/crypto.ts
 
 const CREDENTIALS_KEY = 'iptv_credentials';
@@ -82,6 +83,13 @@ export const useAuth = () => {
 
     try {
       const accountsStore = useAccountsStore();
+
+      // Clear all cache and reset stores to prevent data contamination
+      apiCache.clearAll();
+      stalkerStore.$reset();
+      if (xtreamStore.isAuthenticated) {
+        xtreamStore.logout();
+      }
 
       // Authenticate
       const result = await stalkerStore.makeHandshake(portalUrl, macAddress);
@@ -169,6 +177,13 @@ export const useAuth = () => {
 
     try {
       const accountsStore = useAccountsStore();
+
+      // Clear all cache and reset stores to prevent data contamination
+      apiCache.clearAll();
+      xtreamStore.logout();
+      if (stalkerStore.token) {
+        stalkerStore.$reset();
+      }
 
       // Authenticate
       const result = await xtreamStore.authenticate(serverUrl, username, password);
@@ -387,7 +402,8 @@ export const useAuth = () => {
 
       isLoading.value = true;
 
-      // Logout current session (but keep saved accounts)
+      // Clear all cache and logout current session (but keep saved accounts)
+      apiCache.clearAll();
       if (stalkerStore.token) {
         stalkerStore.$reset();
       }
