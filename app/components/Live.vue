@@ -97,15 +97,27 @@
         </div>
       </div>
     </div>
+
+    <!-- PIN Prompt Modal -->
+    <PinPromptModal
+      v-model:open="showPinPrompt"
+      @submit="handlePinSubmit"
+      @cancel="handlePinCancel"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
+const parentalControl = useParentalControl();
 
 const selectedItem = ref("");
 const search = ref("");
+
+// PIN prompt state
+const showPinPrompt = ref(false);
+let pinPromptResolver: ((pin: string | null) => void) | null = null;
 
 const isLoading = computed(() => {
   return providerType.value === "stalker"
@@ -178,6 +190,23 @@ function getChannelImage(item: any): string {
 
 // Handle channel selection
 async function setSelectedLive(item: any) {
+  // Check parental control before playback
+  if (parentalControl.isEnabled.value) {
+    const hasAccess = await parentalControl.checkContentAccess(
+      item,
+      selectedCategory.value,
+      providerType.value || '',
+      async () => {
+        return new Promise((resolve) => {
+          showPinPrompt.value = true;
+          pinPromptResolver = resolve;
+        });
+      }
+    );
+
+    if (!hasAccess) return; // Block playback
+  }
+
   selectedItem.value = item;
 
   console.log(selectedItem.value);
@@ -190,6 +219,22 @@ async function setSelectedLive(item: any) {
   } else if (providerType.value === "xtream") {
     await xtream.playLiveStream(item);
   }
+}
+
+function handlePinSubmit(pin: string) {
+  if (pinPromptResolver) {
+    pinPromptResolver(pin);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
+}
+
+function handlePinCancel() {
+  if (pinPromptResolver) {
+    pinPromptResolver(null);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
 }
 
 // Watch for category changes

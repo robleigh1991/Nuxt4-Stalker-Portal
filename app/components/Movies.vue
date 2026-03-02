@@ -100,6 +100,13 @@
         </div>
       </div>
     </div>
+
+    <!-- PIN Prompt Modal -->
+    <PinPromptModal
+      v-model:open="showPinPrompt"
+      @submit="handlePinSubmit"
+      @cancel="handlePinCancel"
+    />
   </div>
 </template>
 
@@ -107,10 +114,15 @@
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
 const toast = useToast();
+const parentalControl = useParentalControl();
 
 const selectedItem = ref<any>(null);
 const search = ref("");
 const isLoading = ref(false);
+
+// PIN prompt state
+const showPinPrompt = ref(false);
+let pinPromptResolver: ((pin: string | null) => void) | null = null;
 
 const isCategoryLoading = computed(() => {
   return providerType.value === "stalker"
@@ -201,6 +213,23 @@ async function setSelectedMovie(item: any) {
       timeout: 3000,
     });
     return;
+  }
+
+  // Check parental control before playback
+  if (parentalControl.isEnabled.value) {
+    const hasAccess = await parentalControl.checkContentAccess(
+      item,
+      selectedCategory.value,
+      providerType.value || '',
+      async () => {
+        return new Promise((resolve) => {
+          showPinPrompt.value = true;
+          pinPromptResolver = resolve;
+        });
+      }
+    );
+
+    if (!hasAccess) return; // Block playback
   }
 
   // Cancel previous request if any
@@ -306,6 +335,23 @@ onUnmounted(() => {
     abortController.abort();
   }
 });
+
+// PIN prompt handlers
+function handlePinSubmit(pin: string) {
+  if (pinPromptResolver) {
+    pinPromptResolver(pin);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
+}
+
+function handlePinCancel() {
+  if (pinPromptResolver) {
+    pinPromptResolver(null);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
+}
 </script>
 
 <style scoped>

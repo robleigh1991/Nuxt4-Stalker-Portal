@@ -81,6 +81,8 @@ export const useAuth = () => {
     isLoading.value = true;
 
     try {
+      const accountsStore = useAccountsStore();
+
       // Authenticate
       const result = await stalkerStore.makeHandshake(portalUrl, macAddress);
 
@@ -91,9 +93,47 @@ export const useAuth = () => {
       // Load initial data
       await stalkerStore.getAllInfo();
 
-      // Store credentials if remember me is enabled
+      // Find or create account in multi-account system
+      const credentials = { portalUrl, macAddress };
+      let accountId: string | null = null;
+
+      // Check if account already exists by comparing credentials
+      const stalkerAccounts = accountsStore.accounts.filter(acc => acc.providerType === 'stalker');
+      for (const account of stalkerAccounts) {
+        const existingCreds = await accountsStore.getAccountCredentials(account.id) as any;
+        if (existingCreds?.portalUrl === portalUrl && existingCreds?.macAddress === macAddress) {
+          accountId = account.id;
+          break;
+        }
+      }
+
+      // Create new account if not found
+      if (!accountId) {
+        const hostname = new URL(portalUrl).hostname;
+        const accountName = `Stalker - ${hostname}`;
+        const result = await accountsStore.addAccount(accountName, 'stalker', credentials);
+        if (result.success && result.accountId) {
+          accountId = result.accountId;
+        }
+      }
+
+      // Set as active account
+      if (accountId) {
+        accountsStore.setActiveAccount(accountId);
+
+        // Reload per-account stores
+        const favoritesStore = useFavoritesStore();
+        const watchHistoryStore = useWatchHistoryStore();
+        const channelMgmtStore = useChannelManagementStore();
+
+        favoritesStore.reloadForAccount();
+        watchHistoryStore.reloadForAccount();
+        channelMgmtStore.reloadForAccount();
+      }
+
+      // Store credentials if remember me is enabled (legacy support)
       if (remember) {
-        await saveCredentials('stalker', { portalUrl, macAddress });
+        await saveCredentials('stalker', credentials);
         await saveSession('stalker');
       }
 
@@ -128,6 +168,8 @@ export const useAuth = () => {
     isLoading.value = true;
 
     try {
+      const accountsStore = useAccountsStore();
+
       // Authenticate
       const result = await xtreamStore.authenticate(serverUrl, username, password);
 
@@ -142,9 +184,49 @@ export const useAuth = () => {
         xtreamStore.getSeriesCategories(),
       ]);
 
-      // Store credentials if remember me is enabled
+      // Find or create account in multi-account system
+      const credentials = { serverUrl, username, password };
+      let accountId: string | null = null;
+
+      // Check if account already exists by comparing credentials
+      const xtreamAccounts = accountsStore.accounts.filter(acc => acc.providerType === 'xtream');
+      for (const account of xtreamAccounts) {
+        const existingCreds = await accountsStore.getAccountCredentials(account.id) as any;
+        if (existingCreds?.serverUrl === serverUrl &&
+            existingCreds?.username === username &&
+            existingCreds?.password === password) {
+          accountId = account.id;
+          break;
+        }
+      }
+
+      // Create new account if not found
+      if (!accountId) {
+        const hostname = new URL(serverUrl).hostname;
+        const accountName = `Xtream - ${hostname}`;
+        const result = await accountsStore.addAccount(accountName, 'xtream', credentials);
+        if (result.success && result.accountId) {
+          accountId = result.accountId;
+        }
+      }
+
+      // Set as active account
+      if (accountId) {
+        accountsStore.setActiveAccount(accountId);
+
+        // Reload per-account stores
+        const favoritesStore = useFavoritesStore();
+        const watchHistoryStore = useWatchHistoryStore();
+        const channelMgmtStore = useChannelManagementStore();
+
+        favoritesStore.reloadForAccount();
+        watchHistoryStore.reloadForAccount();
+        channelMgmtStore.reloadForAccount();
+      }
+
+      // Store credentials if remember me is enabled (legacy support)
       if (remember) {
-        await saveCredentials('xtream', { serverUrl, username, password });
+        await saveCredentials('xtream', credentials);
         await saveSession('xtream', {
           username: xtreamStore.userInfo?.username,
           status: xtreamStore.userInfo?.status,

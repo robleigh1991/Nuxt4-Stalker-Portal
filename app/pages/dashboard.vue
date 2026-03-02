@@ -336,6 +336,118 @@
               </UButton>
             </div>
 
+            <!-- Parental Controls -->
+            <div class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-lg font-semibold">Parental Controls</h3>
+                  <p class="text-sm text-gray-400 mt-1">
+                    Protect adult content with a PIN
+                  </p>
+                </div>
+                <UToggle
+                  :model-value="settings.parentalControl.enabled"
+                  :disabled="!settings.parentalControl.pinHash"
+                  @update:model-value="handleToggleParentalControl"
+                />
+              </div>
+
+              <!-- PIN Setup Required Message -->
+              <div v-if="!settings.parentalControl.pinHash" class="p-4 bg-blue-500/10 border border-blue-500/20 rounded mb-4">
+                <div class="flex items-start gap-3">
+                  <UIcon name="i-lucide-info" class="w-5 h-5 text-blue-400 mt-0.5" />
+                  <div>
+                    <p class="text-sm text-blue-400 font-medium mb-1">PIN Required</p>
+                    <p class="text-xs text-blue-400/80">Set up a PIN to enable parental controls and protect adult content.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- PIN Management -->
+              <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">PIN Management</label>
+                <div class="flex gap-2">
+                  <UButton
+                    v-if="!settings.parentalControl.pinHash"
+                    @click="showPinSetupModal = true"
+                    color="primary"
+                    icon="i-lucide-shield-plus"
+                  >
+                    Set PIN
+                  </UButton>
+                  <template v-else>
+                    <UButton
+                      @click="showChangePinModal = true"
+                      color="gray"
+                      icon="i-lucide-key-round"
+                    >
+                      Change PIN
+                    </UButton>
+                    <UButton
+                      @click="showRemovePinModal = true"
+                      color="red"
+                      variant="soft"
+                      icon="i-lucide-shield-off"
+                    >
+                      Remove PIN
+                    </UButton>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Options (only shown when PIN is set) -->
+              <div v-if="settings.parentalControl.pinHash" class="space-y-4">
+                <!-- Hide Adult Categories Toggle -->
+                <div class="flex items-center justify-between p-3 bg-white/5 rounded">
+                  <div>
+                    <p class="text-sm font-medium">Hide Adult Categories</p>
+                    <p class="text-xs text-gray-400">Remove adult categories from category lists</p>
+                  </div>
+                  <UToggle
+                    :model-value="settings.parentalControl.hideAdultCategories"
+                    @update:model-value="settings.toggleHideAdultCategories()"
+                  />
+                </div>
+
+                <!-- Session Timeout -->
+                <div class="p-3 bg-white/5 rounded">
+                  <label class="block text-sm font-medium mb-2">PIN Session Timeout</label>
+                  <p class="text-xs text-gray-400 mb-3">How long before asking for PIN again</p>
+                  <USelect
+                    :model-value="settings.parentalControl.sessionTimeout"
+                    :options="[
+                      { label: '15 minutes', value: 15 },
+                      { label: '30 minutes', value: 30 },
+                      { label: '60 minutes', value: 60 },
+                      { label: 'Always ask', value: 0 }
+                    ]"
+                    @update:model-value="settings.setSessionTimeout($event)"
+                  />
+                </div>
+
+                <!-- Current Session Status -->
+                <div v-if="settings.parentalControl.enabled && parentalControl.isSessionValid()" class="p-3 bg-green-500/10 border border-green-500/20 rounded">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <UIcon name="i-lucide-shield-check" class="w-4 h-4 text-green-400" />
+                      <span class="text-sm text-green-400">Session Active</span>
+                    </div>
+                    <UButton
+                      @click="handleClearSession"
+                      size="xs"
+                      color="gray"
+                      variant="ghost"
+                    >
+                      End Session
+                    </UButton>
+                  </div>
+                  <p v-if="settings.parentalControl.sessionTimeout > 0" class="text-xs text-green-400/70 mt-1">
+                    {{ parentalControl.getRemainingTime() }} minutes remaining
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <!-- Channel Management -->
             <div v-if="channelMgmtStore.hiddenCount > 0" class="bg-[#141414] p-6 rounded border border-white/10 mb-6">
               <div class="flex items-center justify-between mb-4">
@@ -676,6 +788,30 @@
   <!-- Search Modal -->
   <SearchModal v-model:open="showSearchModal" @select="handleSearchResult" />
 
+  <!-- PIN Modals -->
+  <PinSetupModal
+    v-model:open="showPinSetupModal"
+    mode="create"
+    @success="handlePinSetupSuccess"
+  />
+  <PinSetupModal
+    v-model:open="showChangePinModal"
+    mode="change"
+    @success="handlePinChangeSuccess"
+  />
+  <PinPromptModal
+    v-model:open="showRemovePinModal"
+    @submit="handleRemovePinSubmit"
+    @cancel="showRemovePinModal = false"
+  />
+
+  <!-- Dashboard Playback PIN Prompt -->
+  <PinPromptModal
+    v-model:open="showDashboardPinPrompt"
+    @submit="handleDashboardPinSubmit"
+    @cancel="handleDashboardPinCancel"
+  />
+
   <!-- Memory Monitor -->
   <MemoryMonitor />
 
@@ -725,6 +861,7 @@ const { setupCommonShortcuts } = useCommonShortcuts();
 const { switchAccount } = useAuth();
 const favorites = useFavorites();
 const { startAutoCleanup, stopAutoCleanup } = useMemoryCleanup();
+const parentalControl = useParentalControl();
 
 const selectedTab = ref("live-tv");
 const selectedCategory = ref<any>(null);
@@ -734,6 +871,15 @@ const playerKey = ref(0); // Key to force VideoPlayer recreation
 
 // Global search modal
 const showSearchModal = ref(false);
+
+// Parental control modals
+const showPinSetupModal = ref(false);
+const showChangePinModal = ref(false);
+const showRemovePinModal = ref(false);
+
+// Dashboard PIN prompt for playback (separate from settings PINs)
+const showDashboardPinPrompt = ref(false);
+let dashboardPinPromptResolver: ((pin: string | null) => void) | null = null;
 
 // Account management
 const showAddAccountModal = ref(false);
@@ -1285,10 +1431,19 @@ const seriesCategories = computed(() => {
 });
 
 const displayedCategories = computed(() => {
-  if (activeCategoryTab.value === 'live') return liveTVCategories.value;
-  if (activeCategoryTab.value === 'movies') return movieCategories.value;
-  if (activeCategoryTab.value === 'series') return seriesCategories.value;
-  return [];
+  let categories: any[] = [];
+  if (activeCategoryTab.value === 'live') categories = liveTVCategories.value;
+  else if (activeCategoryTab.value === 'movies') categories = movieCategories.value;
+  else if (activeCategoryTab.value === 'series') categories = seriesCategories.value;
+
+  // Filter out censored categories if hideAdultCategories is enabled
+  if (parentalControl.hideAdultCategories.value) {
+    categories = categories.filter(cat =>
+      !parentalControl.isCensoredCategory(cat, providerType.value)
+    );
+  }
+
+  return categories;
 });
 
 function isCategoryHidden(category: any): boolean {
@@ -1468,6 +1623,24 @@ function handleClearFavorites() {
 }
 
 async function playFavoriteItem(fav: any) {
+  // Check parental control before playback
+  if (parentalControl.isEnabled.value) {
+    // For favorites, we don't have the category, so pass null
+    const hasAccess = await parentalControl.checkContentAccess(
+      fav.data,
+      null,
+      fav.providerType,
+      async () => {
+        return new Promise((resolve) => {
+          showDashboardPinPrompt.value = true;
+          dashboardPinPromptResolver = resolve;
+        });
+      }
+    );
+
+    if (!hasAccess) return; // Block playback
+  }
+
   // Switch to the appropriate tab
   if (fav.contentType === 'live') {
     selectedTab.value = 'live-tv';
@@ -1507,6 +1680,23 @@ async function resumeWatchingItem(item: any) {
 
 // Handle search result selection
 async function handleSearchResult(result: any) {
+  // Check parental control before playback
+  if (parentalControl.isEnabled.value) {
+    const hasAccess = await parentalControl.checkContentAccess(
+      result.data,
+      null, // Search results don't have category context
+      providerType.value || '',
+      async () => {
+        return new Promise((resolve) => {
+          showDashboardPinPrompt.value = true;
+          dashboardPinPromptResolver = resolve;
+        });
+      }
+    );
+
+    if (!hasAccess) return; // Block playback
+  }
+
   // Switch to appropriate tab
   if (result.type === 'live') {
     selectedTab.value = 'live-tv';
@@ -1544,6 +1734,97 @@ async function handleSearchResult(result: any) {
       }
     }
   }
+}
+
+// Parental Control Handlers
+function handleToggleParentalControl(enabled: boolean) {
+  if (!settings.parentalControl.pinHash) {
+    toast.add({
+      title: 'PIN Required',
+      description: 'Please set up a PIN first',
+      color: 'red',
+    });
+    return;
+  }
+
+  settings.setParentalControlEnabled(enabled);
+
+  if (!enabled) {
+    // Clear session when disabling
+    parentalControl.clearSession();
+  }
+
+  toast.add({
+    title: enabled ? 'Parental Controls Enabled' : 'Parental Controls Disabled',
+    description: enabled
+      ? 'Adult content is now protected'
+      : 'Adult content is no longer protected',
+    color: enabled ? 'green' : 'gray',
+  });
+}
+
+function handlePinSetupSuccess() {
+  toast.add({
+    title: 'PIN Created',
+    description: 'Parental controls are now active',
+    color: 'green',
+  });
+}
+
+function handlePinChangeSuccess() {
+  toast.add({
+    title: 'PIN Changed',
+    description: 'Your PIN has been updated',
+    color: 'green',
+  });
+  // Clear session to require re-authentication
+  parentalControl.clearSession();
+}
+
+async function handleRemovePinSubmit(pin: string) {
+  const success = await settings.removePin(pin);
+
+  if (success) {
+    showRemovePinModal.value = false;
+    parentalControl.clearSession();
+    toast.add({
+      title: 'PIN Removed',
+      description: 'Parental controls have been disabled',
+      color: 'success',
+    });
+  } else {
+    toast.add({
+      title: 'Incorrect PIN',
+      description: 'The PIN you entered is incorrect',
+      color: 'red',
+    });
+  }
+}
+
+function handleClearSession() {
+  parentalControl.clearSession();
+  toast.add({
+    title: 'Session Ended',
+    description: 'PIN will be required for adult content',
+    color: 'gray',
+  });
+}
+
+// Dashboard playback PIN prompt handlers
+function handleDashboardPinSubmit(pin: string) {
+  if (dashboardPinPromptResolver) {
+    dashboardPinPromptResolver(pin);
+    dashboardPinPromptResolver = null;
+  }
+  showDashboardPinPrompt.value = false;
+}
+
+function handleDashboardPinCancel() {
+  if (dashboardPinPromptResolver) {
+    dashboardPinPromptResolver(null);
+    dashboardPinPromptResolver = null;
+  }
+  showDashboardPinPrompt.value = false;
 }
 
 function onScroll(event: Event) {

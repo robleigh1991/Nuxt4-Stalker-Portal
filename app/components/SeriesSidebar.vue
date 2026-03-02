@@ -109,7 +109,7 @@
               v-for="episode in episodes"
               :key="episode.id || episode.episode_id"
               class="episode-item p-3 rounded-lg cursor-pointer transition-all duration-200 bg-gray-700/30 hover:bg-gray-700/50 border border-transparent hover:border-primary-500"
-              @click="playEpisode(episode)"
+              @click="playEpisodeWithPinCheck(episode)"
             >
               <div class="flex items-start gap-3">
                 <div
@@ -180,6 +180,13 @@
         <p>{{ seriesDetailsError }}</p>
       </div>
     </div>
+
+    <!-- PIN Prompt Modal -->
+    <PinPromptModal
+      v-model:open="showPinPrompt"
+      @submit="handlePinSubmit"
+      @cancel="handlePinCancel"
+    />
   </div>
 </template>
 
@@ -187,6 +194,11 @@
 const stalker = useStalkerStore();
 const xtream = useXtreamStore();
 const { proxyImage, getPlaceholder } = useImageProxy();
+const parentalControl = useParentalControl();
+
+// PIN prompt state
+const showPinPrompt = ref(false);
+let pinPromptResolver: ((pin: string | null) => void) | null = null;
 
 const props = defineProps<{
   selectedTab: string;
@@ -256,6 +268,53 @@ const {
   episodes,
   playEpisode,
 } = useSeriesDetails(selectedTabRef);
+
+// Get selected category (for parental control check)
+const selectedCategory = computed(() => {
+  return providerType.value === "stalker"
+    ? stalker.selectedCategory
+    : xtream.selectedCategory;
+});
+
+// Wrapper function that checks PIN before playing episode
+async function playEpisodeWithPinCheck(episode: any) {
+  // Check parental control before playback
+  if (parentalControl.isEnabled.value) {
+    const hasAccess = await parentalControl.checkContentAccess(
+      currentSeries.value,
+      selectedCategory.value,
+      providerType.value || '',
+      async () => {
+        return new Promise((resolve) => {
+          showPinPrompt.value = true;
+          pinPromptResolver = resolve;
+        });
+      }
+    );
+
+    if (!hasAccess) return; // Block playback
+  }
+
+  // Call original playEpisode function
+  await playEpisode(episode);
+}
+
+// PIN prompt handlers
+function handlePinSubmit(pin: string) {
+  if (pinPromptResolver) {
+    pinPromptResolver(pin);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
+}
+
+function handlePinCancel() {
+  if (pinPromptResolver) {
+    pinPromptResolver(null);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
+}
 </script>
 
 <style scoped>

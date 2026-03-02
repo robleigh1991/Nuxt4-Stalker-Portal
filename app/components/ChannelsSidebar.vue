@@ -134,6 +134,13 @@
         <p>No channels available</p>
       </div>
     </div>
+
+    <!-- PIN Prompt Modal -->
+    <PinPromptModal
+      v-model:open="showPinPrompt"
+      @submit="handlePinSubmit"
+      @cancel="handlePinCancel"
+    />
   </div>
 </template>
 
@@ -142,6 +149,11 @@ const stalker = useStalkerStore();
 const xtream = useXtreamStore();
 const channelMgmt = useChannelManagementStore();
 const { proxyImage, getPlaceholder } = useImageProxy();
+const parentalControl = useParentalControl();
+
+// PIN prompt state
+const showPinPrompt = ref(false);
+let pinPromptResolver: ((pin: string | null) => void) | null = null;
 
 const placeholderImage = computed(() => getPlaceholder());
 
@@ -285,6 +297,23 @@ function isCurrentChannel(channel: any): boolean {
 async function switchChannel(channel: any) {
   if (!channel) return;
 
+  // Check parental control before playback
+  if (parentalControl.isEnabled.value) {
+    const hasAccess = await parentalControl.checkContentAccess(
+      channel,
+      selectedCategory.value,
+      providerType.value || '',
+      async () => {
+        return new Promise((resolve) => {
+          showPinPrompt.value = true;
+          pinPromptResolver = resolve;
+        });
+      }
+    );
+
+    if (!hasAccess) return; // Block playback
+  }
+
   // Add to recent channels
   const channelInfo = {
     id: channelMgmt.generateChannelId(channel, providerType.value),
@@ -356,6 +385,23 @@ function closeModal() {
   } else if (providerType.value === 'xtream') {
     xtream.modalOpen = false;
   }
+}
+
+// PIN prompt handlers
+function handlePinSubmit(pin: string) {
+  if (pinPromptResolver) {
+    pinPromptResolver(pin);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
+}
+
+function handlePinCancel() {
+  if (pinPromptResolver) {
+    pinPromptResolver(null);
+    pinPromptResolver = null;
+  }
+  showPinPrompt.value = false;
 }
 </script>
 

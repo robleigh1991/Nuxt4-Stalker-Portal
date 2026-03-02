@@ -9,6 +9,7 @@ import type { SearchResult, ProviderType } from '~/types/app';
 export const useGlobalSearch = () => {
   const stalkerStore = useStalkerStore();
   const xtreamStore = useXtreamStore();
+  const parentalControl = useParentalControl();
 
   const isSearching = ref(false);
   const searchQuery = ref('');
@@ -309,6 +310,13 @@ export const useGlobalSearch = () => {
         searchResults = searchStalker(query);
       } else if (provider === 'xtream') {
         searchResults = searchXtream(query);
+      }
+
+      // Filter censored content if hideAdultCategories is enabled
+      if (parentalControl.hideAdultCategories.value && provider) {
+        searchResults = searchResults.filter(result =>
+          !parentalControl.isCensoredContent(result.data, null, provider)
+        );
       }
 
       // Results are already sorted by fuzzy match score
